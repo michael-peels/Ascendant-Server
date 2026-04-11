@@ -29,6 +29,8 @@ public:
 	void IncrementCount(uint16 instance_id);
 	void IncrementAssassinationCount(uint16 instance_id);
 	void DoLeaderboardRequest(const char* player, uint8 type);
+	void ForceClearPlayer(const char *requester, const char *player);
+	void ListActiveAdventures(const char *requester);
 	void SendAdventureFinish(AdventureFinishEvent fe);
 	void AddFinishedEvent(AdventureFinishEvent fe) { finished_list.push_back(fe); Save(); }
 	bool PopFinishedEvent(const char *name, AdventureFinishEvent &fe);

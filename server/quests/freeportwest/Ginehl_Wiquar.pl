@@ -4,7 +4,7 @@
 #   Adventure in the Rujarkian Hills (LDoN charm power up)
 
 sub EVENT_SAY {
-   if ($text=~/hail/i && defined($qglobals{RUJtalk}) && plugin::check_hasitem($client, 41000)) {
+   if ($text=~/hail/i && defined($qglobals{RUJtalk}) && plugin::check_hasitem($client, 741000)) {
       my $ruj_wins = $client->GetLDoNWinsTheme(4);
       if ($ruj_wins >= 14 && $qglobals{RUJtalk} == 6) {
          # 14 wins - RUJtalk 7

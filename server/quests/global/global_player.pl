@@ -38,6 +38,9 @@ sub EVENT_ENTERZONE { #message only appears in Cities / Pok and wherever the Way
   
   # Start alt currency pending check timer
   quest::settimer("altcur_pending_check", 10);
+
+  # Philanthropist: distribution check + pending plat pickup (every 2 min)
+  quest::settimer("philanthropist_check", 120);
   
   # Start anti-warp system
   #plugin::StartAntiWarp($client);
@@ -232,6 +235,12 @@ sub EVENT_TIMER {
             plugin::Fellowship_FadeAll($client);
             quest::stoptimer("fellowship_recheck");
         }
+        return;
+    }
+
+    # Philanthropist: deliver pending plat grants to this player
+    if ($timer eq "philanthropist_check") {
+        plugin::Philanthropist_PickupGrants($client);
         return;
     }
 

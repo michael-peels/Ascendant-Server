@@ -12,7 +12,7 @@
 # priority (later expansions override earlier ones for overlapping ranges).
 
 sub active_expansions {
-    return ('classic', 'kunark', 'velious');
+    return ('classic', 'kunark', 'velious', 'ldon');
 }
 
 #=============================================================================
@@ -58,6 +58,7 @@ sub _expansion_pool_dispatch {
     if ($exp eq 'classic') { return plugin::classic_rare_pools(); }
     if ($exp eq 'kunark')  { return plugin::kunark_rare_pools(); }
     if ($exp eq 'velious') { return plugin::velious_rare_pools(); }
+    if ($exp eq 'ldon')    { return plugin::ldon_rare_pools(); }
     return undef;
 }
 
@@ -66,6 +67,7 @@ sub _expansion_blocks_dispatch {
     if ($exp eq 'classic') { return plugin::classic_level_blocks(); }
     if ($exp eq 'kunark')  { return plugin::kunark_level_blocks(); }
     if ($exp eq 'velious') { return plugin::velious_level_blocks(); }
+    if ($exp eq 'ldon')    { return plugin::ldon_level_blocks(); }
     return undef;
 }
 
@@ -81,6 +83,7 @@ sub _expansion_zone_dispatch {
     if ($exp eq 'classic') { return plugin::classic_zone_ids(); }
     if ($exp eq 'kunark')  { return plugin::kunark_zone_ids(); }
     if ($exp eq 'velious') { return plugin::velious_zone_ids(); }
+    if ($exp eq 'ldon')    { return plugin::ldon_zone_ids(); }
     return undef;
 }
 

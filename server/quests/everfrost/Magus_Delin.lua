@@ -2,7 +2,7 @@
 
 function event_say(e)
 	--Adventurers Stone
-	if(e.other:KeyRingCheck(41000) or e.other:HasItem(41000)) then
+	if(e.other:KeyRingCheck(741000) or e.other:HasItem(741000)) then
 		if(e.message:findi("hail")) then
 			e.self:Say("You're going to need to have a fair amount of faith in me and my friends.  I make it a policy to tell all of the travelers that come to me that this is not a perfected magic and probably never will be.  The magic we are using is, in my opinion, not of Norrathian origins.  Or perhaps I'm simply an eccentric who hopes there is a greater force out there that is granting us the use of new magics.  Anyway, enough chatter.  Tell me where you would like to go and I will send you there.  I can send you to any of the other camps in [" .. eq.say_link("Butcherblock",false,"Butcherblock") .. "], [" .. eq.say_link("Commonlands",false,"Commonlands") .. "], [" .. eq.say_link("Nedaria's Landing",false,"Nedaria's Landing") .. "], [" .. eq.say_link("North Ro",false,"North Ro") .. "], or [" .. eq.say_link("South Ro",false,"South Ro") .. "].  Please be still as I do this.");
 		

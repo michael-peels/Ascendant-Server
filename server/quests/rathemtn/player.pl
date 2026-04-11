@@ -1,6 +1,6 @@
 sub EVENT_ENTERZONE
 {
-	if($ulevel >= 15 && !defined($qglobals{Wayfarer}) && quest::is_lost_dungeons_of_norrath_enabled())
+	if($ulevel >= 15 && !defined($qglobals{Wayfarer}) && quest::is_content_flag_enabled("ldon"))
 	{
 		if($race eq "Froglok")
 		{

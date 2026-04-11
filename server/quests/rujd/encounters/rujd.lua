@@ -402,7 +402,7 @@ function check_chests()
 
 		local dz = eq.get_expedition()
 		if dz.valid then
-			dz:AddReplayLockout(eq.seconds("4d12h"))
+			dz:AddReplayLockout(eq.seconds("16h"))
 		end
 	end;
 end

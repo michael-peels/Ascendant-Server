@@ -4,7 +4,7 @@
 #   Adventure in the Mistmoore Catacombs. (LDoN charm power up)
 
 sub EVENT_SAY {
-   if ($text=~/hail/i && defined($qglobals{MMCtalk}) && plugin::check_hasitem($client, 41000)) {
+   if ($text=~/hail/i && defined($qglobals{MMCtalk}) && plugin::check_hasitem($client, 741000)) {
       my $mmc_wins = $client->GetLDoNWinsTheme(3);
       if($mmc_wins >= 52 && $qglobals{MMCtalk} == 25) {
          # 52 wins - MMCtalk 26

@@ -193,7 +193,7 @@ sub CreateExpedition {
     $client->Message(2, "Say " . quest::saylink("enter", 1, "'enter'") . " to go alone or " .
                         quest::saylink("send group", 1, "'send group'") . " to bring everyone.");
 
-    return 1;
+    return $dz->GetInstanceID() || 1;
 }
 
 # -----------------------------------------------------------------------------

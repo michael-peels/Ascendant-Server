@@ -25,21 +25,24 @@ sub EVENT_ENTERZONE {
         return;
     }
 
-    # Look up mode from the expedition leader's pending key (set by Planeshifter Tyrael)
-    # Only the leader's key is checked to avoid stale keys from other raid members
-    my $mode = 0;
-    if ($exp) {
+    # Primary: look up mode by instance ID (set by Planeshifter Tyrael at creation)
+    my $mode = quest::get_data("sleeper_mode_$inst_id") || 0;
+    quest::debug("Sleeper Instance $inst_id: mode=$mode (from sleeper_mode key)");
+
+    # Fallback: legacy leader-based pending key
+    if (!$mode && $exp) {
         my $leader_name = $exp->GetLeaderName();
         my $members = $exp->GetMembers();
         if ($leader_name && $members && exists $members->{$leader_name}) {
             my $leader_cid = $members->{$leader_name};
             $mode = quest::get_data("sleeper_pending_$leader_cid") || 0;
-            quest::debug("Sleeper Instance $inst_id: Leader=$leader_name cid=$leader_cid mode=$mode");
+            quest::debug("Sleeper Instance $inst_id: fallback leader=$leader_name cid=$leader_cid mode=$mode");
         }
     }
-    # Fallback: try the entering client's key
+    # Last resort: try the entering client's pending key
     if (!$mode) {
         $mode = quest::get_data("sleeper_pending_" . $client->CharacterID()) || 0;
+        quest::debug("Sleeper Instance $inst_id: fallback client cid=" . $client->CharacterID() . " mode=$mode");
     }
 
     quest::debug("Sleeper Instance $inst_id: Resolved mode=$mode");
@@ -56,7 +59,12 @@ sub EVENT_ENTERZONE {
         quest::spawn_condition("sleeper", $inst_id, 2, 0);
         quest::debug("Sleeper Instance $inst_id: Mode 1 (Warders) — conditions set");
     }
-    # else: Normal expedition — both conditions stay at 0 (no warders, no ancients)
+    else {
+        # Normal expedition — explicitly clear both to prevent zone defaults
+        quest::spawn_condition("sleeper", $inst_id, 1, 0);
+        quest::spawn_condition("sleeper", $inst_id, 2, 0);
+        quest::debug("Sleeper Instance $inst_id: Mode 0 (Normal) — both conditions cleared");
+    }
 
     # Mark as initialized
     quest::set_data($init_key, "1", 604800);

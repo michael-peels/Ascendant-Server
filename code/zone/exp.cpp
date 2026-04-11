@@ -498,6 +498,10 @@ void Client::AddEXP(ExpSource exp_source, uint64 in_add_exp, uint8 conlevel, boo
 		return;
 	}
 
+	if (RuleB(Character, DisableEXPWhenIdle) && IsIdle()) {
+		return;
+	}
+
 	uint64 exp = 0;
 	uint64 aaexp = 0;
 

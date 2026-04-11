@@ -2,7 +2,7 @@
 #Quest: Adventurer's Stone
 #
 #Selephra Giztral, Barstre Songweaver, Vual Stoutest, Teria Grinntli, or Ruanya Windleaf
-# items: 41000, 40999
+# items: 741000, 40999
 
 sub EVENT_SAY {
   if ($ulevel >= 15) {
@@ -28,14 +28,14 @@ sub EVENT_SAY {
         quest::faction(1759,50); #Wayfarers Brotherhood
         quest::setglobal("Wayfarer",2,5,"F");
         quest::say("Take this Adventurer Stone with you on your journeys into the dungeons. You will find it useful. Should you lose it somehow, come talk to me and I'll replace it.");
-        quest::summonitem(41000); #Adventurer's Stone
-        $client->KeyRingAdd(41000);
+        quest::summonitem(741000); #Adventurer's Stone
+        $client->KeyRingAdd(741000);
       }
     }
     elsif (defined($qglobals{Wayfarer}) && ($qglobals{Wayfarer} == 2)) { #PC is ready for Adventurer's Stone
-      if (!plugin::check_hasitem($client,41000)) { #PC does not have an Adventurer's Stone
+      if (!plugin::check_hasitem($client,741000)) { #PC does not have an Adventurer's Stone
         quest::say("Take this Adventurer Stone with you on your journeys into the dungeons. You will find it useful. Should you lose it somehow, come talk to me and I'll replace it.");
-        quest::summonitem(41000); #Adventurer's Stone
+        quest::summonitem(741000); #Adventurer's Stone
       }
       else { #PC has an Adventurer's Stone already
         my $mir_wins = $client->GetLDoNWinsTheme(2);

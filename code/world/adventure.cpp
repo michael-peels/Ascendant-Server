@@ -3,6 +3,7 @@
 #include "common/extprofile.h"
 #include "common/misc_functions.h"
 #include "common/random.h"
+#include "common/repositories/adventure_members_repository.h"
 #include "common/repositories/character_corpses_repository.h"
 #include "common/rulesys.h"
 #include "common/servertalk.h"
@@ -47,6 +48,12 @@ Adventure::Adventure(AdventureTemplate *t, int in_count, int in_assassination_co
 
 Adventure::~Adventure()
 {
+	if (instance_id) {
+		AdventureMembersRepository::DeleteWhere(
+			database,
+			fmt::format("id = {}", instance_id)
+		);
+	}
 	safe_delete(current_timer);
 }
 
@@ -58,6 +65,16 @@ void Adventure::AddPlayer(std::string character_name, bool add_client_to_instanc
 		if(character_id && add_client_to_instance)
 		{
 			database.AddClientToInstance(instance_id, character_id);
+		}
+		if(character_id)
+		{
+			AdventureMembersRepository::ReplaceOne(
+				database,
+				AdventureMembersRepository::AdventureMembers{
+					.id = instance_id,
+					.charid = static_cast<uint32_t>(character_id)
+				}
+			);
 		}
 		players.push_back(character_name);
 	}
@@ -74,6 +91,10 @@ void Adventure::RemovePlayer(std::string character_name)
 			if (character_id)
 			{
 				database.RemoveClientFromInstance(instance_id, character_id);
+				AdventureMembersRepository::DeleteWhere(
+					database,
+					fmt::format("charid = {}", character_id)
+				);
 				players.erase(iter);
 			}
 			return;

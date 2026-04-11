@@ -1133,19 +1133,13 @@ void MobMovementManager::UpdatePathGround(Mob *who, float x, float y, float z, M
 
 		if (noValidPath) {
 			//we are 'stuck' in a path, lets just get out of this by 'teleporting' to the next position.
-			if (zone->HasMap() && zone->zonemap->CheckLoS(
-					glm::vec3(who->GetX(), who->GetY(), who->GetZ()),
-					glm::vec3(x, y, z))) {
-				PushTeleportTo(
-					ent.second,
-					x,
-					y,
-					z,
-					CalculateHeadingAngleBetweenPositions(who->GetX(), who->GetY(), x, y)
-				);
-			} else {
-				HandleStuckBehavior(who, x, y, z, mode);
-			}
+			PushTeleportTo(
+				ent.second,
+				x,
+				y,
+				z,
+				CalculateHeadingAngleBetweenPositions(who->GetX(), who->GetY(), x, y)
+			);
 
 			return;
 		}

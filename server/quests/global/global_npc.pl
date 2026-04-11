@@ -138,7 +138,7 @@ sub EVENT_SPAWN {
   # Skip combat scaling for pets, but allow other pet logic
   my $is_pet = $npc->IsPet();
 
-  if (!$is_pet && !plugin::IsScalingZone($zoneid)) {
+  if (!$is_pet && !plugin::IsScalingZone($zoneid) && !plugin::IsLdonScalingZone($zoneid)) {
 
 
     # ---------- DAMAGE ----------
@@ -249,6 +249,13 @@ sub EVENT_SPAWN {
   if (plugin::AprilFools_Enabled()) {
       my @AprilFoolsItems = (29781, 42983, 55938, 64044, 64046);
       plugin::AddLoot(1, 10, @AprilFoolsItems);
+  }
+
+  # -----------------------------
+  # LDON Relic Global Drop (community unlock event)
+  # -----------------------------
+  if (defined &quest::is_content_flag_enabled && !quest::is_content_flag_enabled("ldon")) {
+      plugin::AddLoot(1, 800, 9544);  # ~0.02% — Lost Dungeon Relic
   }
 
   # -----------------------------
@@ -496,9 +503,21 @@ sub EVENT_COMBAT {
     my $combat_state = plugin::val('$combat_state');
     if ($combat_state == 1) {
         plugin::EncounterScaling_OnEngage($npc);
+        plugin::LdonScaling_OnEngage($npc);
         plugin::AprilFools_OnEngage($npc);
+
+        # Fellowship mob strength scaling (after encounter scaling)
+        if (!$npc->IsPet() && $npc->GetLevel() > 1) {
+            my $target = $npc->GetTarget();
+            if ($target && $target->IsClient()) {
+                my $tier = plugin::Fellowship_GetCurrentTier($target->CastToClient());
+                plugin::Fellowship_ScaleMob($npc, $tier) if $tier > 0;
+            }
+        }
     } else {
         plugin::EncounterScaling_OnDisengage($npc);
+        plugin::LdonScaling_OnDisengage($npc);
+        plugin::Fellowship_RestoreMob($npc);
     }
 }
 
@@ -515,6 +534,7 @@ sub EVENT_TIMER {
   our $timer;
   if ($timer eq 'enc_rescan') {
     plugin::EncounterScaling_Rescan($npc);
+    plugin::LdonScaling_Rescan($npc);
     return;
   }
 
@@ -632,33 +652,11 @@ sub EVENT_DEATH {
   my $client = $killer_mob->CastToClient();
 
   # -----------------------------
-  # GROUP BONUS LOOT (4+ members)
+  # FELLOWSHIP BONUS LOOT (tier-based)
   # -----------------------------
-  if ($client->IsGrouped()) {
-    my $group      = $client->GetGroup();
-    my $group_size = $group ? $group->GroupCount() : 0;
-
-    if ($group_size >= 4) {
-      my $npc_lvl = $npc->GetLevel();
-
-      # Bonus shard roll: +20% of base rate
-      if (rand() < 0.0025) {
-        $npc->AddItem($ASCENDANT_SHARD_ID, 1);
-        quest::debug("GROUP BONUS: Added shard (group=$group_size npc_lvl=$npc_lvl)");
-      }
-
-      # Bonus tome roll: +20% of base rate
-      if (rand() < 0.0018) {
-        my @AllTomes = (
-          @IllegalibleTomesTier1,
-          @IllegalibleTomesTier2,
-          @IllegalibleTomesTier3,
-        );
-        my $tome = $AllTomes[int(rand(scalar(@AllTomes)))];
-        $npc->AddItem($tome, 1);
-        quest::debug("GROUP BONUS: Added tome $tome (group=$group_size npc_lvl=$npc_lvl)");
-      }
-    }
+  my $fellowship_tier = plugin::Fellowship_GetCurrentTier($client);
+  if ($fellowship_tier > 0) {
+    plugin::Fellowship_BonusLoot($npc, $client, $fellowship_tier);
   }
 
   # -----------------------------

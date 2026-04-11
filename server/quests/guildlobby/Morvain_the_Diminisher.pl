@@ -80,15 +80,25 @@ sub EVENT_ITEM {
         return;
     }
 
+    # Check if turned-in item was attuneable so we preserve that on the base
+    my $attune = 0;
+    my $dbh = plugin::LoadMysql();
+    if ($dbh) {
+        my ($attune_val) = $dbh->selectrow_array(
+            "SELECT attuneable FROM items WHERE id = ?", undef, $item_id
+        );
+        $attune = 1 if $attune_val;
+    }
+
     # Consume the tier item (handin) and then give base item
     unless (quest::handin(\%itemcount)) {
         plugin::return_items(\%itemcount);
         return;
     }
 
-    $npc->Emote("drains the ascendant power away, leaving only the item’s original form.");
+    $npc->Emote("drains the ascendant power away, leaving only the item's original form.");
 
-    $client->SummonItem($base_id);
+    $client->SummonItem($base_id, -1, $attune);
     plugin::Whisper("Done. Your item has been restored.");
 }
 

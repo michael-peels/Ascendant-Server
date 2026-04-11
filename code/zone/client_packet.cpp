@@ -2460,7 +2460,7 @@ void Client::Handle_OP_AdventureRequest(const EQApplicationPacket *app)
 	}
 	else
 	{
-		return;
+		group_members = 1;
 	}
 
 	if (group_members < RuleI(Adventure, MinNumberForGroup) || group_members > RuleI(Adventure, MaxNumberForGroup))
@@ -2507,7 +2507,7 @@ void Client::Handle_OP_AdventureRequest(const EQApplicationPacket *app)
 			}
 		}
 	}
-	else
+	else if (g)
 	{
 		int i = 0;
 		for (int x = 0; x < MAX_GROUP_MEMBERS; ++x)
@@ -2525,6 +2525,11 @@ void Client::Handle_OP_AdventureRequest(const EQApplicationPacket *app)
 				++i;
 			}
 		}
+	}
+	else
+	{
+		// Solo player — populate with own name
+		memcpy((packet->pBuffer + sizeof(ServerAdventureRequest_Struct)), GetName(), strlen(GetName()));
 	}
 
 	worldserver.SendPacket(packet);
@@ -17308,6 +17313,10 @@ void Client::CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p)
 					GetPet()->ChangeSize(static_cast<float>(idle_shrink_size), true);
 				}
 			}
+
+			if (RuleB(Character, DisableEXPWhenIdle)) {
+				Message(Chat::Yellow, "Experience gain has been suspended while idle.");
+			}
 			return;
 		}
 	}
@@ -17342,6 +17351,10 @@ void Client::CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p)
 			if (GetPet()) {
 				GetPet()->ChangeSize(GetPet()->GetDefaultRaceSize(), true);
 			}
+		}
+
+		if (RuleB(Character, DisableEXPWhenIdle)) {
+			Message(Chat::Yellow, "Experience gain has been restored.");
 		}
 
 		SyncWorldPositionsToClient();

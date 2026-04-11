@@ -1035,7 +1035,7 @@ void Mob::AI_Process() {
 				float target_z          = t->GetPosition().z - t->GetZOffset();
 				bool  can_path_to       = CastToNPC()->CanPathTo(t->GetX(), t->GetY(), t->GetZ());
 				bool  within_distance   = DistanceNoZ(GetPosition(), t->GetPosition()) < 75;
-				bool  within_z_distance = std::abs(self_z - target_z) >= 25;
+				bool  within_z_distance = std::abs(self_z - target_z) >= 50;
 				if (within_distance && within_z_distance && !can_path_to) {
 					if (zone->HasMap() && zone->zonemap->CheckLoS(GetPosition(), t->GetPosition())) {
 						float new_z = FindDestGroundZ(t->GetPosition());
@@ -1424,15 +1424,12 @@ void Mob::AI_Process() {
 							}
 
 							/**
-							 * Distance: >= 450 (Snap to owner)
+							 * Distance: >= 450 or Z-distance > 100 (Snap to owner)
+							 * Teleport directly instead of pathing, which can fail on
+							 * multi-floor zones and trigger stuck behavior / warp to spawn.
 							 */
-							if (distance_to_owner >= 202500 || z_distance > 100) {
-								if (running) {
-									RunTo(pet_owner_position.x, pet_owner_position.y, pet_owner_position.z);
-								}
-								else {
-									WalkTo(pet_owner_position.x, pet_owner_position.y, pet_owner_position.z);
-								}
+							if (distance_to_owner >= 202500 || std::abs(z_distance) > 100) {
+								Teleport(pet_owner_position);
 							}
 							else {
 

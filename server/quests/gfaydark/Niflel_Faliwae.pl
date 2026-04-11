@@ -5,7 +5,7 @@
 
 sub EVENT_SAY {
    if ($text=~/hail/i) {
-      if (defined($qglobals{TAKtalk}) && plugin::check_hasitem($client, 41000)) {
+      if (defined($qglobals{TAKtalk}) && plugin::check_hasitem($client, 741000)) {
          my $tak_wins = $client->GetLDoNWinsTheme(5);
          if ($tak_wins >= 40 && $qglobals{TAKtalk} == 19) {
             # 40 wins - TAKtalk 20, TAKpower 4

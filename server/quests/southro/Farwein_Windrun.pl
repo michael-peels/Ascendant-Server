@@ -4,7 +4,7 @@
 #   Adventure in Takish-Hiz (LDoN charm power up)
 
 sub EVENT_SAY {
-   if ($text=~/hail/i && defined($qglobals{TAKtalk}) && plugin::check_hasitem($client, 41000)) {
+   if ($text=~/hail/i && defined($qglobals{TAKtalk}) && plugin::check_hasitem($client, 741000)) {
       my $tak_wins = $client->GetLDoNWinsTheme(5);
       if ($tak_wins >= 14 && $qglobals{TAKtalk} == 6) {
          # 14 wins - TAKtalk 7

@@ -4,8 +4,8 @@
 #   Adventure in Miragul's Menagerie (LDoN charm power up)
 
 sub EVENT_SAY {
-   if($text=~/hail/i && defined($qglobals{MIRtalk}) && plugin::check_hasitem($client, 41000)) {
-      # 41000 Adventurer's Stone
+   if($text=~/hail/i && defined($qglobals{MIRtalk}) && plugin::check_hasitem($client, 741000)) {
+      # 741000 Adventurer's Stone
       my $mir_wins = $client->GetLDoNWinsTheme(2);
       
       if ($mir_wins < 2) {

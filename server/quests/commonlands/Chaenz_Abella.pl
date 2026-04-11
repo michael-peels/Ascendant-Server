@@ -1,4 +1,4 @@
-# items: 40999, 41000
+# items: 40999, 741000
 sub EVENT_SAY {
   if($text=~/hail/i) {
     if(defined($qglobals{Wayfarer}) && ($qglobals{Wayfarer} == 4)) { #Player has received Wayfarers Brotherhood Emblem
@@ -17,7 +17,7 @@ sub EVENT_SAY {
 }
 
 sub EVENT_ITEM {
-  if(plugin::check_handin(\%itemcount, 41000 => 1)) { #Adventurer's Stone
+  if(plugin::check_handin(\%itemcount, 741000 => 1)) { #Adventurer's Stone
     if(defined($qglobals{Wayfarer}) && ($qglobals{Wayfarer} == 3)) { #Player has maxed out Adventurer's stone and is ready to speak with Chaenz
       quest::setglobal("Wayfarer",4,5,"F");
       quest::say("I heard you had become knowledgeable about all aspects of the dungeons we've found. I must confess that I never had you pegged for such a great adventurer! I suppose I should welcome you -- as a member of the Wayfarers Brotherhood. The honor is well deserved. Congratulations!");
@@ -26,7 +26,7 @@ sub EVENT_ITEM {
     }
     else {
       quest::say("You are not yet ready to become a full member of the Wayfarers Brotherhood. Seek out more adventures!"); #Text made up
-      quest::summonitem(41000); #Adventurer's Stone
+      quest::summonitem(741000); #Adventurer's Stone
     }
   }
   plugin::return_items(\%itemcount);

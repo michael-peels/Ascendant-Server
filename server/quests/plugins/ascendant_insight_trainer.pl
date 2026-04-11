@@ -369,9 +369,11 @@ sub ShowAADetail {
     # Get mapping info
     my $sth = $dbh->prepare(
         "SELECT acm.universal_aa_id, acm.original_aa_id, acm.aa_name, acm.tier, acm.original_classes, " .
-        "ua.first_rank_id " .
+        "ua.first_rank_id AS universal_first_rank_id, " .
+        "oa.first_rank_id AS original_first_rank_id " .
         "FROM aa_custom_mapping acm " .
         "JOIN aa_ability ua ON ua.id = acm.universal_aa_id " .
+        "JOIN aa_ability oa ON oa.id = acm.original_aa_id " .
         "WHERE acm.universal_aa_id = ?"
     );
     $sth->execute($universal_aa_id);
@@ -393,7 +395,13 @@ sub ShowAADetail {
     my $tier_name = $TIER_NAMES{$tier};
     my $tier_color = $TIER_COLORS{$tier};
     my $tier_balance = GetCreditBalance($client, $tier, $trainer_class);
-    my $first_rank_id = $aa->{first_rank_id};
+
+    # Native class players use original rank chain; cross-class use universal
+    my $player_class = $client->GetClass();
+    my $player_bitmask = 1 << ($player_class - 1);
+    my $has_native = ($aa->{original_classes} & $player_bitmask) ? 1 : 0;
+    my $first_rank_id = $has_native ? $aa->{original_first_rank_id} : $aa->{universal_first_rank_id};
+
     my $current_rank = $client->GetAALevel($first_rank_id);
     my $max_rank = _count_ranks($dbh, $first_rank_id);
 
@@ -444,10 +452,18 @@ sub ShowAADetail {
             my $prereq_name = $p->{aa_name} || "AA $prereq_aa";
             my $prereq_points = $p->{points};
 
-            my ($prereq_first_rank) = $dbh->selectrow_array(
+            # Check both original and universal versions of the prereq
+            my ($prereq_first_rank_orig) = $dbh->selectrow_array(
                 "SELECT first_rank_id FROM aa_ability WHERE id = ?", undef, $prereq_aa
             );
-            my $player_prereq_rank = $prereq_first_rank ? $client->GetAALevel($prereq_first_rank) : 0;
+            my ($prereq_first_rank_univ) = $dbh->selectrow_array(
+                "SELECT ua.first_rank_id FROM aa_custom_mapping acm " .
+                "JOIN aa_ability ua ON ua.id = acm.universal_aa_id " .
+                "WHERE acm.original_aa_id = ?", undef, $prereq_aa
+            );
+            my $rank_orig = $prereq_first_rank_orig ? $client->GetAALevel($prereq_first_rank_orig) : 0;
+            my $rank_univ = $prereq_first_rank_univ ? $client->GetAALevel($prereq_first_rank_univ) : 0;
+            my $player_prereq_rank = ($rank_orig > $rank_univ) ? $rank_orig : $rank_univ;
             my $met = $player_prereq_rank >= $prereq_points ? 1 : 0;
 
             push @prereqs, {
@@ -557,9 +573,11 @@ sub ShowBuyConfirmation {
 
     my $sth = $dbh->prepare(
         "SELECT acm.universal_aa_id, acm.aa_name, acm.tier, acm.original_classes, " .
-        "ua.first_rank_id " .
+        "ua.first_rank_id AS universal_first_rank_id, " .
+        "oa.first_rank_id AS original_first_rank_id " .
         "FROM aa_custom_mapping acm " .
         "JOIN aa_ability ua ON ua.id = acm.universal_aa_id " .
+        "JOIN aa_ability oa ON oa.id = acm.original_aa_id " .
         "WHERE acm.universal_aa_id = ?"
     );
     $sth->execute($universal_aa_id);
@@ -574,7 +592,13 @@ sub ShowBuyConfirmation {
     my $tier = $aa->{tier};
     my $tier_name = $TIER_NAMES{$tier};
     my $tier_balance = GetCreditBalance($client, $tier, $trainer_class);
-    my $first_rank_id = $aa->{first_rank_id};
+
+    # Native class players use original rank chain; cross-class use universal
+    my $player_class = $client->GetClass();
+    my $player_bitmask = 1 << ($player_class - 1);
+    my $has_native = ($aa->{original_classes} & $player_bitmask) ? 1 : 0;
+    my $first_rank_id = $has_native ? $aa->{original_first_rank_id} : $aa->{universal_first_rank_id};
+
     my $current_rank = $client->GetAALevel($first_rank_id);
     my $max_rank = _count_ranks($dbh, $first_rank_id);
 

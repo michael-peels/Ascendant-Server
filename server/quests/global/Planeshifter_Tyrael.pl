@@ -79,19 +79,19 @@ sub EVENT_SAY {
             $client->Message(21, "Normal and Raid lockouts are independent. 1.0/2.0 share a lockout | Duration: 7d");
         }
         elsif ($text =~ /sleeper 1/i) {
-            my $char_id = $client->CharacterID();
-            quest::set_data("sleeper_pending_$char_id", "1", 3600);
-            my $result = plugin::CreateExpedition("sleeper", 0, "Sleeper's Tomb", 1, 54, "raid");
-            if (!$result) {
-                quest::delete_data("sleeper_pending_$char_id");
+            my $inst_id = plugin::CreateExpedition("sleeper", 0, "Sleeper's Tomb", 1, 54, "raid");
+            if ($inst_id) {
+                quest::delete_data("sleeper_init_$inst_id");
+                quest::set_data("sleeper_mode_$inst_id", "1", 604800);
+                $client->Message(15, "[Sleeper] Mode 1.0 stored for instance $inst_id");
             }
         }
         elsif ($text =~ /sleeper 2/i) {
-            my $char_id = $client->CharacterID();
-            quest::set_data("sleeper_pending_$char_id", "2", 3600);
-            my $result = plugin::CreateExpedition("sleeper", 0, "Sleeper's Tomb", 1, 54, "raid");
-            if (!$result) {
-                quest::delete_data("sleeper_pending_$char_id");
+            my $inst_id = plugin::CreateExpedition("sleeper", 0, "Sleeper's Tomb", 1, 54, "raid");
+            if ($inst_id) {
+                quest::delete_data("sleeper_init_$inst_id");
+                quest::set_data("sleeper_mode_$inst_id", "2", 604800);
+                $client->Message(15, "[Sleeper] Mode 2.0 stored for instance $inst_id");
             }
         }
         elsif ($text =~ /expedition/i) {

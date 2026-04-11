@@ -1331,6 +1331,16 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 			AdventureManager::Instance()->DoLeaderboardRequest(lr->player, lr->type);
 			break;
 		}
+		case ServerOP_AdventureForceClear: {
+			auto *saf = (ServerAdventureForceClear_Struct*) pack->pBuffer;
+			AdventureManager::Instance()->ForceClearPlayer(saf->requester, saf->player);
+			break;
+		}
+		case ServerOP_AdventureListRequest: {
+			auto *sal = (ServerAdventureListRequest_Struct*) pack->pBuffer;
+			AdventureManager::Instance()->ListActiveAdventures(sal->requester);
+			break;
+		}
 		case ServerOP_LSAccountUpdate: {
 			LogNetcode("Received ServerOP_LSAccountUpdate packet from zone");
 			LoginServerList::Instance()->SendAccountUpdate(pack);

@@ -162,6 +162,8 @@
 #define ServerOP_AdventureAssaCountUpdate	0x0160
 #define ServerOP_AdventureFinish			0x0161
 #define ServerOP_AdventureLeaderboard		0x0162
+#define ServerOP_AdventureForceClear		0x0163
+#define ServerOP_AdventureListRequest		0x0164
 
 #define ServerOP_WhoAll				0x0210
 #define ServerOP_FriendsWho			0x0211
@@ -1318,6 +1320,17 @@ struct ServerLeaderboardRequest_Struct
 {
 	char player[64];
 	uint8 type;
+};
+
+struct ServerAdventureForceClear_Struct
+{
+	char requester[64];
+	char player[64];
+};
+
+struct ServerAdventureListRequest_Struct
+{
+	char requester[64];
 };
 
 struct ServerCameraShake_Struct
