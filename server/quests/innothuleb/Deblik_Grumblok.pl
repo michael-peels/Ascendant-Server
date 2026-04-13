@@ -4,7 +4,7 @@
 #   Adventure in Deepest Guk (LDoN charm power up)
 
 sub EVENT_SAY {
-   if ($text=~/hail/i && defined($qglobals{GUKtalk}) && plugin::check_hasitem($client, 41000)) {
+   if ($text=~/hail/i && defined($qglobals{GUKtalk}) && plugin::check_hasitem($client, 741000)) {
       my $guk_wins = $client->GetLDoNWinsTheme(1);
       if($guk_wins >= 52 && $qglobals{GUKtalk} == 25) {
          # 52 wins - GUKtalk 26

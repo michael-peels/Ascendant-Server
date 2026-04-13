@@ -26,9 +26,21 @@ my @lobby_locs = (
 sub EVENT_ENTERZONE { #message only appears in Cities / Pok and wherever the Wayfarer Camps (LDON) is in.  This message won't appear in the player's home city.
   # Auto-reapply Ascendant Auras on zone
   ApplyAscendantAuras();
+
+  # April Fools size pranks
+  plugin::AprilFools_OnZoneIn($client);
+
+  # Fellowship bonus: recheck buff on zone-in (buffs don't persist across zones)
+  plugin::Fellowship_ApplyBuff($client);
+  if ($client->IsGrouped()) {
+      quest::settimer("fellowship_recheck", 30);
+  }
   
   # Start alt currency pending check timer
   quest::settimer("altcur_pending_check", 10);
+
+  # Philanthropist: distribution check + pending plat pickup (every 2 min)
+  quest::settimer("philanthropist_check", 120);
   
   # Start anti-warp system
   #plugin::StartAntiWarp($client);
@@ -215,6 +227,23 @@ sub EVENT_TIMER {
     }
     
 
+	if ($timer eq "fellowship_recheck") {
+        # Periodic recheck: handles members zoning out, disconnecting, etc.
+        if ($client->IsGrouped()) {
+            plugin::Fellowship_ApplyBuff($client);
+        } else {
+            plugin::Fellowship_FadeAll($client);
+            quest::stoptimer("fellowship_recheck");
+        }
+        return;
+    }
+
+    # Philanthropist: deliver pending plat grants to this player
+    if ($timer eq "philanthropist_check") {
+        plugin::Philanthropist_PickupGrants($client);
+        return;
+    }
+
 	if ($timer eq "moa_online_roll") {
         # MOA online timer - check for award
         plugin::MoA_HandleOnlineTimerFire($client, $zoneid);
@@ -264,7 +293,13 @@ sub EVENT_TIMER {
     elsif (plugin::HandleAntiWarpTimer($client, $timer)) {
         return;
     }
+    # April Fools size revert
+    if ($timer =~ /^af_sizerevert_/) {
+        plugin::AprilFools_SizeRevert($timer);
+        return;
+    }
 }
+
 
 use strict;
 use warnings;
@@ -335,7 +370,6 @@ sub EVENT_SPELL_FADE {
 
 
 sub EVENT_SAY {
-    
 
     if ($text =~ /^#myaacredits$/i) {
         plugin::ShowAllAACredits($client);
@@ -572,6 +606,11 @@ sub EVENT_DISCOVER_ITEM {
 
 sub EVENT_DEATH {
     my $charid      = $client->CharacterID();
+
+    my $death_key = "leaderboard_deaths_${charid}";
+    my $deaths = int(quest::get_data($death_key) || 0) + 1;
+    quest::set_data($death_key, $deaths);
+
     my $x           = $client->GetX();
     my $y           = $client->GetY();
     my $z           = $client->GetZ() + 1;
@@ -736,6 +775,50 @@ sub EVENT_POPUPRESPONSE {
             quest::MovePCInstance($zone_id, $instance_id, $x, $y, $z, $heading);
         } else {
             quest::movepc($zone_id, $x, $y, $z, $heading);
+        }
+    }
+}
+
+sub EVENT_GROUP_CHANGE {
+    our ($grouped);
+    # Fellowship bonus: evaluate group composition and apply/fade buff
+    if ($grouped) {
+        plugin::Fellowship_ApplyBuff($client);
+        quest::settimer("fellowship_recheck", 30);
+    } else {
+        plugin::Fellowship_FadeAll($client);
+        quest::stoptimer("fellowship_recheck");
+    }
+}
+
+sub EVENT_GM_COMMAND {
+    our ($message);
+    # Audit log: capture all built-in # commands from GMs (any status > 0)
+    if ($status > 0 && $status < 200) {
+        my $char = $client->GetCleanName();
+        my $acct = $client->AccountID();
+        my $zone = quest::GetZoneShortName($zoneid);
+        my $full_cmd = $message || '';
+        my $target_name = '';
+        my $target = $client->GetTarget();
+        if ($target) {
+            $target_name = $target->GetCleanName();
+        }
+        eval {
+            my $dbh = plugin::LoadMysql();
+            if ($dbh) {
+                my $sth = $dbh->prepare("INSERT INTO gm_audit_log (account_id, account_status, char_name, zone, command, target) VALUES (?, ?, ?, ?, ?, ?)");
+                $sth->execute($acct, $status, $char, $zone, $full_cmd, $target_name);
+                $sth->finish();
+                $dbh->disconnect();
+            }
+        };
+        my @t = localtime;
+        my $ts = sprintf("%04d-%02d-%02d %02d:%02d:%02d", $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0]);
+        if (open(my $fh, '>>', '/home/eqemu/server/logs/gm_audit.log')) {
+            my $tgt = $target_name ? " -> ${target_name}" : '';
+            print $fh "[$ts] [${char} acct:${acct} status:${status}] [${zone}] ${full_cmd}${tgt}\n";
+            close($fh);
         }
     }
 }

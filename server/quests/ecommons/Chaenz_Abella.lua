@@ -1,4 +1,4 @@
--- items: 41000, 40999
+-- items: 741000, 40999
 local rujg = {
   expedition = { name="The Rujarkian Hills: Hidden Vale of Deceit", min_players=6, max_players=54 },
   instance   = { zone="rujg", version=50, duration=eq.seconds("3h") },
@@ -25,7 +25,7 @@ function event_trade(e)
   local qglobals = eq.get_qglobals(e.other);
 
   if (qglobals["Wayfarer"] ~= nil and qglobals["Wayfarer"] == "3") then 
-    if (item_lib.check_turn_in(e.trade, {item1 = 41000})) then
+    if (item_lib.check_turn_in(e.trade, {item1 = 741000})) then
       e.self:Say("I heard you had become knowledgeable about all aspects of the dungeons we've found. I must confess that I never had you pegged for such a great adventurer! I suppose I should welcome you -- as a member of the Wayfarers Brotherhood. The honor is well deserved. Congratulations!");
       e.self:Say("Here is a token of my appreciation. Should you lose your Wayfarers Brotherhood Emblem or misplace it, I or Barstre, Selephra, Ruanya, Teria, or Vual will replace it.");
 

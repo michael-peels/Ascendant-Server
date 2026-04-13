@@ -2246,10 +2246,18 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 						break;
 					}
 
+					// [Ascendant] Correct Z at summon destination to prevent falling through world
+				{
+					float summon_z = caster->GetZ();
+					float fixed_z = GetFixedZ(glm::vec3(caster->GetX(), caster->GetY(), summon_z));
+					if (fixed_z != BEST_Z_INVALID && std::abs(fixed_z - summon_z) < 100.0f) {
+						summon_z = fixed_z;
+					}
 					CastToClient()->MovePC(zone->GetZoneID(), zone->GetInstanceID(), caster->GetX(),
-							       caster->GetY(), caster->GetZ(), caster->GetHeading(), 2,
-							       SummonPC);
-					MessageString(Chat::Spells, PLAYER_SUMMONED);
+						caster->GetY(), summon_z, caster->GetHeading(), 2,
+						SummonPC);
+				}
+				MessageString(Chat::Spells, PLAYER_SUMMONED);
 				} else {
 					caster->Message(Chat::Red, "This spell can only be cast on players.");
 				}
@@ -2261,6 +2269,12 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 #ifdef SPELL_EFFECT_SPAM
 				snprintf(effect_desc, _EDLEN, "Silence");
 #endif
+				// [Ascendant] Cap silence duration for players
+				if (IsOfClientBot() && buffslot > -1 && RuleI(Ascendant, MaxSilenceDurationForPlayerCharacter) > 0) {
+					if (buffs[buffslot].ticsremaining > RuleI(Ascendant, MaxSilenceDurationForPlayerCharacter)) {
+						buffs[buffslot].ticsremaining = RuleI(Ascendant, MaxSilenceDurationForPlayerCharacter);
+					}
+				}
 				Silence(true);
 				break;
 			}
@@ -5560,7 +5574,7 @@ int64 Mob::CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, boo
 				break;
 
 			case SpellEffect::LimitCastTimeMin:
-				if (spells[spell_id].cast_time < (uint16) focus_spell.base_value[i]) {
+				if (!IsBardSong(spell_id) && spells[spell_id].cast_time < (uint16) focus_spell.base_value[i]) {
 					return (0);
 				}
 				break;
@@ -5586,7 +5600,7 @@ int64 Mob::CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, boo
 				break;
 
 			case SpellEffect::LimitMinDur:
-				if (focus_spell.base_value[i] >
+				if (!IsBardSong(spell_id) && focus_spell.base_value[i] >
 					CalcBuffDuration_formula(GetLevel(), spell.buff_duration_formula, spell.buff_duration)) {
 					return (0);
 				}
@@ -6512,7 +6526,12 @@ int64 Mob::GetFocusEffect(focusType type, uint16 spell_id, Mob *caster, bool fro
 		type != focusReduceRecastTime &&
 		type != focusImprovedDamage &&
 		type != focusImprovedDamage2 &&
-		type != focusFcDamagePctCrit) {
+		type != focusFcDamagePctCrit &&
+		type != focusFcAmplifyMod &&
+		type != focusFcDamageAmtCrit &&
+		type != focusFcDamageAmt &&
+		type != focusFcDamageAmt2 &&
+		type != focusFcAmplifyAmt) {
 		return 0;
 	}
 
@@ -7445,12 +7464,25 @@ bool Mob::PassLimitClass(uint32 Classes_, uint16 Class_)
 
 void Mob::DispelMagic(Mob* caster, uint16 spell_id, int effect_value)
 {
+	int attempts = 0;
+	int max_attempts = RuleI(Ascendant, DispelMaxSlotAttempts);
+
 	for (int slot = 0; slot < GetMaxTotalSlots(); slot++) {
 		if (
 			buffs[slot].spellid != SPELL_UNKNOWN &&
 			spells[buffs[slot].spellid].dispel_flag == 0 &&
 			!IsDiscipline(buffs[slot].spellid)
 		) {
+			// [Ascendant] Protect self-cast buffs (including AA-granted buffs) from NPC dispels
+			if (RuleB(Ascendant, DispelProtectSelfBuffs) && caster && caster->IsNPC() && buffs[slot].casterid == GetID()) {
+				continue;
+			}
+
+			// [Ascendant] Limit number of buff slots attempted per NPC dispel cast
+			if (max_attempts > 0 && caster && caster->IsNPC() && ++attempts > max_attempts) {
+				break;
+			}
+
 			if (caster && TryDispel(caster->GetCasterLevel(spell_id), buffs[slot].casterlevel, effect_value)) {
 				BuffFadeBySlot(slot);
 				break;

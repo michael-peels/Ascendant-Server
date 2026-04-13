@@ -239,6 +239,8 @@ RULE_INT(Character, SecondsBeforeIdleCombatZone, 600, "Seconds before a player i
 RULE_INT(Character, SecondsBeforeIdleNonCombatZone, 60, "Seconds before a player is considered idle in non-combat zones (60 = 1 minute)")
 RULE_INT(Character, SecondsBeforeAFKCombatZone, 1800, "Seconds before a player is considered AFK in combat zones (1800 = 30 minutes)")
 RULE_INT(Character, SecondsBeforeAFKNonCombatZone, 600, "Seconds before a player is considered AFK in non-combat zones (600 = 10 minutes)")
+RULE_INT(Character, IdleShrinkSize, 0, "Size to shrink idle players and their pets to (0 = disabled). Uses unrestricted sizing.")
+RULE_BOOL(Character, DisableEXPWhenIdle, false, "Disable experience gain for players while they are idle. Re-enables automatically when they move again.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Mercs)
@@ -402,7 +404,7 @@ RULE_BOOL(Map, FixZWhenPathing, true, "Automatically fix NPC Z coordinates when 
 RULE_BOOL(Map, MobZVisualDebug, false, "Displays spell effects determining whether or not NPC is hitting Best Z calcs (blue for hit, red for miss)")
 RULE_BOOL(Map, MobPathingVisualDebug, false, "Displays nodes in pathing points in realtime to help with visual debugging")
 RULE_REAL(Map, FixPathingZMaxDeltaSendTo, 20, "At runtime in SendTo: maximum change in Z to allow the BestZ code to apply")
-RULE_INT(Map, FindBestZHeightAdjust, 1, "Adds this to the current Z before seeking the best Z position")
+RULE_INT(Map, FindBestZHeightAdjust, 5, "Adds this to the current Z before seeking the best Z position")
 RULE_BOOL(Map, CheckForDoorLoSCheat, true, "Runs LoS checks to prevent cheating through doors.")
 RULE_BOOL(Map, EnableLoSCheatExemptions, false, "Enables exemptions for the LoS Cheat check. Must modify source to create these.")
 RULE_REAL(Map, RangeCheckForDoorLoSCheat, 250.0, "Default 250.0. Range to check if a door is blocking LoS from the target.")
@@ -412,9 +414,9 @@ RULE_CATEGORY_END()
 RULE_CATEGORY(Pathing)
 RULE_BOOL(Pathing, Find, true, "Enable pathing for FindPerson requests from the client")
 RULE_BOOL(Pathing, Fear, true, "Enable pathing for fear")
-RULE_REAL(Pathing, NavmeshStepSize, 100.0f, "Step size for the movement manager")
+RULE_REAL(Pathing, NavmeshStepSize, 50.0f, "Step size for the movement manager")
 RULE_REAL(Pathing, ShortMovementUpdateRange, 130.0f, "Range for short movement updates")
-RULE_INT(Pathing, MaxNavmeshNodes, 4092, "Maximum navmesh nodes in a traversable path")
+RULE_INT(Pathing, MaxNavmeshNodes, 8192, "Maximum navmesh nodes in a traversable path")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Watermap)
@@ -1224,6 +1226,17 @@ RULE_INT(Ascendant, HybridCasterSpellDmgBonus, 25,
 // --- DoT cast time cap ---
 RULE_INT(Ascendant, DoTCastTimeCapMS, 2500,
 	"[Ascendant] Cap DoT spell cast times for Nec/Dru/Sha/Bard to this value in ms. Uses IsDamageOverTimeSpell() check. 0 = disabled.")
+// --- Hate summon HP threshold ---
+RULE_INT(Ascendant, HateSummonHPRatio, 90,
+	"[Ascendant] Default HP ratio threshold for NPC hate summon. Mob must be at or below this HP% to summon. Per-NPC special_abilities param overrides this. 0 = disable hate summon.")
+// --- Silence duration cap ---
+RULE_INT(Ascendant, MaxSilenceDurationForPlayerCharacter, 2,
+	"[Ascendant] Maximum number of tics a player can be silenced. 1 tic equals 6 seconds. 0 = no cap (vanilla behavior).")
+// --- Dispel protections ---
+RULE_BOOL(Ascendant, DispelProtectSelfBuffs, true,
+	"[Ascendant] If true, NPC dispels will skip buffs where the caster is the target itself (protects self-buffs and AA-granted buffs).")
+RULE_INT(Ascendant, DispelMaxSlotAttempts, 3,
+	"[Ascendant] Maximum number of buff slots an NPC dispel will attempt before giving up. Player dispels are unaffected. 0 = unlimited (vanilla behavior).")
 RULE_CATEGORY_END()
 
 #undef RULE_CATEGORY

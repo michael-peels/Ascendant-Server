@@ -74,10 +74,20 @@ sub EVENT_ITEM {
 
     # Lore safety (practical): if they already have the base item anywhere, refuse
     # This prevents creating a lore error when summoning the base.
-    if ($client->CountItem($base_id) > 0) {
+    if ($client->CheckLoreConflict($base_id)) {
         plugin::Whisper("I will not do this. You already possess the base item and this would create a lore problem.");
         plugin::return_items(\%itemcount);
         return;
+    }
+
+    # Check if turned-in item was attuneable so we preserve that on the base
+    my $attune = 0;
+    my $dbh = plugin::LoadMysql();
+    if ($dbh) {
+        my ($attune_val) = $dbh->selectrow_array(
+            "SELECT attuneable FROM items WHERE id = ?", undef, $item_id
+        );
+        $attune = 1 if $attune_val;
     }
 
     # Consume the tier item (handin) and then give base item
@@ -86,9 +96,9 @@ sub EVENT_ITEM {
         return;
     }
 
-    $npc->Emote("drains the ascendant power away, leaving only the item’s original form.");
+    $npc->Emote("drains the ascendant power away, leaving only the item's original form.");
 
-    $client->SummonItem($base_id);
+    $client->SummonItem($base_id, -1, $attune);
     plugin::Whisper("Done. Your item has been restored.");
 }
 

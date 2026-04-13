@@ -380,8 +380,8 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 		// if there's a cast time, check if they have a modifier for it
 		if (cast_time) {
 			cast_time = GetActSpellCasttime(spell_id, cast_time);
-			// [Ascendant] Cap cast time after all reductions
-			if (RuleI(Ascendant, CapSpellCastTimeMS) > 0 && cast_time > RuleI(Ascendant, CapSpellCastTimeMS))
+			// [Ascendant] Cap cast time after all reductions (PCs/Bots only)
+			if (IsOfClientBot() && RuleI(Ascendant, CapSpellCastTimeMS) > 0 && cast_time > RuleI(Ascendant, CapSpellCastTimeMS))
 				cast_time = RuleI(Ascendant, CapSpellCastTimeMS);
 			// [Ascendant] DoT cast time cap for Nec/Dru/Sha/Bard
 			if (RuleI(Ascendant, DoTCastTimeCapMS) > 0
@@ -1770,7 +1770,7 @@ void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slo
 	}
 
 	if(IsOfClientBotMerc()) {
-		TrySympatheticProc(target, spell_id);
+		TrySympatheticProc(target, spell_id, slot);
 	}
 
 	TryTwincast(this, target, spell_id);
@@ -5616,7 +5616,7 @@ float Mob::ResistSpell(uint8 resist_type, uint16 spell_id, Mob *caster, bool use
 				return 100;
 			}
 
-			int max_partial = RuleI(Spells, MaxDamageSpellPartialResist);
+			int max_partial = (caster && caster->IsOfClientBot()) ? RuleI(Spells, MaxDamageSpellPartialResist) : 100;
 			if(partial_modifier > max_partial)
 			{
 				partial_modifier = max_partial;

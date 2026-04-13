@@ -8,26 +8,29 @@ package plugin;
 use strict;
 use warnings;
 
-# Item ID for the pet bag
-my $PET_BAG_ITEM_ID = 93861;  # 24-slot container
+# Item IDs for pet bags
+my $PET_BAG_ITEM_ID        = 93861;  # Original pet bag (6-slot)
+my $CASTER_PET_BAG_ITEM_ID = 2828;   # Ascendant Casters Pet Bag (10-slot, Enc/Mag/Wiz/Nec)
 
 sub EquipPetFromBag {
-    my $npc = shift;  # The pet NPC
+    my ($npc, $owner_arg) = @_;
     
     # Make sure this is actually a pet
     return unless $npc->IsPet();
-    
-    # Get the pet's owner
-    my $owner_id = $npc->GetOwnerID();
-    return unless $owner_id;
-    
-    my $entity_list = plugin::val('$entity_list');
-    return unless $entity_list;
 
     my $PET_BAG_HEAL_COOLDOWN_SEC = 600;  # 10 minutes
 
-    
-    my $owner = $entity_list->GetClientByID($owner_id);
+    # Use passed-in owner if available, otherwise discover via entity_list
+    my $owner;
+    if ($owner_arg && $owner_arg->IsClient()) {
+        $owner = $owner_arg;
+    } else {
+        my $owner_id = $npc->GetOwnerID();
+        return unless $owner_id;
+        my $entity_list = plugin::val('$entity_list');
+        return unless $entity_list;
+        $owner = $entity_list->GetClientByID($owner_id);
+    }
     unless ($owner) {
         quest::debug("PetBag: Could not find owner for pet");
         return;
@@ -36,7 +39,7 @@ sub EquipPetFromBag {
     quest::debug("PetBag: Checking for pet bag for " . $owner->GetCleanName());
     
     # Find the pet bag in owner's inventory or bank
-    my $pet_bag = FindPetBag($owner);
+    my ($pet_bag, $bag_inv_slot) = FindPetBag($owner);
     unless ($pet_bag) {
         quest::debug("PetBag: No pet bag found for " . $owner->GetCleanName());
         return;
@@ -99,8 +102,10 @@ sub EquipPetFromBag {
     my $pre_avg   = ($pre_min + $pre_max) / 2.0;
 
     # Accumulators for stats that AddItem does NOT apply
-    my $ac_bonus  = 0;
-    my $atk_bonus = 0;
+    my $ac_bonus       = 0;
+    my $atk_bonus      = 0;
+    my $spelldmg_bonus = 0;
+    my $healamt_bonus  = 0;
 
     # Track best primary-hand weapon by DPS
     my $best_wpn_dmg   = 0;
@@ -114,7 +119,7 @@ sub EquipPetFromBag {
     # Charm pets: procs may persist on NPC after charm break (no RemoveMeleeProc exists)
     my $procs_already_applied = ($npc->GetEntityVariable('petbag_procs_applied') || 0);
 
-    # Loop through each slot in the pet bag (0-23 for 24-slot container)
+    # Loop through each slot in the pet bag (up to 24 — empty slots past bag size are skipped)
     my %proc_counts;  # track how many times we see each proc spell
 
     for my $bag_slot (0..23) {
@@ -130,8 +135,33 @@ sub EquipPetFromBag {
         $equipped_count++;
 
         # Accumulate AC/ATK bonuses (AddItem does NOT apply these to pets)
-        $ac_bonus  += ($npc->GetItemStat($item_id, "ac")  || 0);
-        $atk_bonus += ($npc->GetItemStat($item_id, "atk") || 0);
+        $ac_bonus      += ($npc->GetItemStat($item_id, "ac")       || 0);
+        $atk_bonus     += ($npc->GetItemStat($item_id, "atk")      || 0);
+        my $item_spelldmg = ($npc->GetItemStat($item_id, "spelldmg") || 0);
+        my $item_healamt  = ($npc->GetItemStat($item_id, "healamt")  || 0);
+        $spelldmg_bonus += $item_spelldmg;
+        $healamt_bonus  += $item_healamt;
+        if ($item_spelldmg || $item_healamt) {
+            quest::debug("PetBag: Item $item_name spelldmg=$item_spelldmg healamt=$item_healamt (running total: sd=$spelldmg_bonus ha=$healamt_bonus)");
+        }
+
+        # Accumulate stats from augments on this item (direct ItemInst method)
+        for my $aug_slot (0..5) {
+            my $aug_id = $item->GetAugmentItemID($aug_slot);
+            next unless $aug_id && $aug_id > 0;
+            quest::debug("PetBag: Found aug $aug_id in slot $aug_slot on $item_name");
+            my $aug_ac  = ($npc->GetItemStat($aug_id, "ac")       || 0);
+            my $aug_atk = ($npc->GetItemStat($aug_id, "atk")      || 0);
+            my $aug_sd  = ($npc->GetItemStat($aug_id, "spelldmg") || 0);
+            my $aug_ha  = ($npc->GetItemStat($aug_id, "healamt")  || 0);
+            $ac_bonus       += $aug_ac;
+            $atk_bonus      += $aug_atk;
+            $spelldmg_bonus += $aug_sd;
+            $healamt_bonus  += $aug_ha;
+            if ($aug_ac || $aug_atk || $aug_sd || $aug_ha) {
+                quest::debug("PetBag: Aug $aug_id on $item_name ac=$aug_ac atk=$aug_atk sd=$aug_sd ha=$aug_ha (total: sd=$spelldmg_bonus ha=$healamt_bonus)");
+            }
+        }
 
         # Track best primary-hand weapon by DPS
         my $slots  = $npc->GetItemStat($item_id, "slots")  || 0;
@@ -197,6 +227,25 @@ sub EquipPetFromBag {
         my $new_atk = $base_atk + $atk_bonus;
         $npc->ModifyNPCStat("atk", $new_atk);
         quest::debug("PetBag: Applied ATK bonus: base=$base_atk +$atk_bonus = $new_atk");
+    }
+
+    # Apply SpellFocusDMG/Heal — flat bonus added to all pet spell damage including procs
+    # Hardcoded to 0 in npc.cpp, only settable via SetSpellFocusDMG/Heal()
+    my $FOCUS_DMG_MULT  = 1.5;
+    my $FOCUS_HEAL_MULT = 1.5;
+    if ($spelldmg_bonus > 0) {
+        my $focus_dmg = $spelldmg_bonus * $FOCUS_DMG_MULT;
+        $npc->SetSpellFocusDMG($focus_dmg);
+        quest::debug("PetBag: SetSpellFocusDMG: $spelldmg_bonus*$FOCUS_DMG_MULT = $focus_dmg");
+    } else {
+        $npc->SetSpellFocusDMG(0);
+    }
+    if ($healamt_bonus > 0) {
+        my $focus_heal = $healamt_bonus * $FOCUS_HEAL_MULT;
+        $npc->SetSpellFocusHeal($focus_heal);
+        quest::debug("PetBag: SetSpellFocusHeal: $healamt_bonus*$FOCUS_HEAL_MULT = $focus_heal");
+    } else {
+        $npc->SetSpellFocusHeal(0);
     }
 
     # Always reset active delay to base first — prevents stale value from prior equip
@@ -267,47 +316,59 @@ sub EquipPetFromBag {
 
 sub FindPetBag {
     my $client = shift;
-    
-    quest::debug("PetBag: Searching for pet bag (Item ID: $PET_BAG_ITEM_ID)");
-    
-    # Search general inventory slots (23-32 = general1-general10)
-    for my $slot (23..32) {
+
+    # Determine which bag IDs to search for, in priority order
+    # Nec(11)/Wiz(12)/Mag(13)/Enc(14)/BST(15) get the caster bag first, then fallback to original
+    my $class_id = $client->GetClass();
+    my @bag_ids;
+    if ($class_id == 11 || $class_id == 12 || $class_id == 13 || $class_id == 14 || $class_id == 15) {
+        @bag_ids = ($CASTER_PET_BAG_ITEM_ID, $PET_BAG_ITEM_ID);
+    } else {
+        @bag_ids = ($PET_BAG_ITEM_ID);
+    }
+
+    quest::debug("PetBag: Searching for pet bag (IDs: " . join(',', @bag_ids) . ") class=$class_id");
+
+    # Diagnostic: dump all general inventory slot contents
+    for my $slot (22..32) {
         my $item = $client->GetItemAt($slot);
-        next unless $item;
-        
-        my $item_id = $item->GetID();
-        quest::debug("PetBag: Checking inventory slot $slot: Item ID $item_id");
-        
-        # Check if this is the pet bag
-        if ($item_id == $PET_BAG_ITEM_ID) {
-            quest::debug("PetBag: Found pet bag in inventory slot $slot");
-            return $item;
+        if ($item) {
+            quest::debug("PetBag: DIAG slot $slot has item ID=" . $item->GetID() . " name=" . $item->GetName());
         }
     }
-    
-    # Search bank slots (2000-2023)
-    for my $slot (2000..2023) {
-        my $item = $client->GetItemAt($slot);
-        next unless $item;
-        
-        my $item_id = $item->GetID();
-        
-        # Check if this is the pet bag
-        if ($item_id == $PET_BAG_ITEM_ID) {
-            quest::debug("PetBag: Found pet bag in bank slot $slot");
-            return $item;
+
+    # Search each bag ID in priority order — first match wins
+    # Use hardcoded slot ranges (consistent with buff bag system)
+    foreach my $target_id (@bag_ids) {
+        # Search general inventory slots (22-32)
+        for my $slot (22..32) {
+            my $item = $client->GetItemAt($slot);
+            next unless $item;
+            if ($item->GetID() == $target_id) {
+                quest::debug("PetBag: Found bag $target_id in inventory slot $slot");
+                return ($item, $slot);
+            }
+        }
+
+        # Search bank slots (2000-2023)
+        for my $slot (2000..2023) {
+            my $item = $client->GetItemAt($slot);
+            next unless $item;
+            if ($item->GetID() == $target_id) {
+                quest::debug("PetBag: Found bag $target_id in bank slot $slot");
+                return ($item, $slot);
+            }
         }
     }
-    
+
     quest::debug("PetBag: Pet bag not found in inventory or bank");
-    # Not found
-    return undef;
+    return (undef, undef);
 }
 
 sub ShowPetBagContents {
     my $client = shift;
     
-    my $pet_bag = FindPetBag($client);
+    my ($pet_bag, $bag_inv_slot) = FindPetBag($client);
     
     unless ($pet_bag) {
         $client->Message(13, "You don't have a Pet Bag in your inventory or bank.");
@@ -362,6 +423,8 @@ sub ShowPetStats {
     my $acc     = $npc->GetNPCStat("accuracy") || 0;
     my $avoid   = $npc->GetNPCStat("avoidance") || 0;
     my $slowmit = $npc->GetNPCStat("slow_mitigation") || 0;
+    my $focus_dmg  = $npc->GetSpellFocusDMG()  || 0;
+    my $focus_heal = $npc->GetSpellFocusHeal() || 0;
 
     my $str = $npc->GetSTR();  my $sta = $npc->GetSTA();
     my $agi = $npc->GetAGI();  my $dex = $npc->GetDEX();
@@ -385,7 +448,7 @@ sub ShowPetStats {
     if ($base_raw) {
         @b = split(',', $base_raw);
     }
-    # Order: hp,ac,atk,str,sta,agi,dex,int,wis,cha,mr,fr,cr,pr,dr,min,max,delay
+    # Order: hp,ac,atk,str,sta,agi,dex,int,wis,cha,mr,fr,cr,pr,dr,min,max,delay,spellscale,healscale
 
     # GetAttackDelay() returns raw*100 (2800 = raw 28)
     my $delay_raw = $delay / 100;       # raw EQ delay (28)
@@ -573,6 +636,9 @@ sub ShowPetStats {
     <b>Active:</b> $wpn_status - Avg $avg_hit | Delay $active_delay_disp | DPS $est_dps<br><br>
 
     <b>Accuracy:</b> $acc | <b>Avoidance:</b> $avoid | <b>Slow Mit:</b> $slowmit<br><br>
+
+    <c "#DD88FF"><b>Spell Power</b></c><br>
+    <b>Focus DMG:</b> +$focus_dmg | <b>Focus Heal:</b> +$focus_heal<br><br>
 
     <c "#8888FF"><b>Resistances</b></c><br>
     <b>MR:</b> $mr$d_mr | <b>FR:</b> $fr$d_fr | <b>CR:</b> $cr$d_cr<br>

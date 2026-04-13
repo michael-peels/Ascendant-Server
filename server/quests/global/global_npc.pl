@@ -17,6 +17,7 @@ our (
   $npc,
   $client,
   $zoneid,
+  $instanceid,
   $text,
   $status,
   $entity_list
@@ -84,7 +85,48 @@ sub is_named_or_rare {
 }
 
 
+# -----------------------------------------------------------------------------
+# DZ Mode Detection — derives mode from expedition name, cached per instance
+# Used by EVENT_DEATH_COMPLETE to prevent respawns in raid-mode DZs
+# -----------------------------------------------------------------------------
+my %_dz_mode_cache;
+
+sub _get_dz_mode {
+    return '' unless $instanceid && $instanceid > 0;
+    return $_dz_mode_cache{$instanceid} if exists $_dz_mode_cache{$instanceid};
+
+    my $dz = quest::get_expedition();
+    return '' unless $dz;
+
+    my $name = $dz->GetName();
+    my $mode = ($name =~ /:\s*Raid$/i) ? 'raid' : 'normal';
+    $_dz_mode_cache{$instanceid} = $mode;
+    return $mode;
+}
+
 sub EVENT_SPAWN {
+
+  # -----------------------------
+  # NORMAL DZ: Depop raid targets (pure script, no DB migration needed)
+  # In normal-mode expedition instances, raid targets are excluded.
+  # Only applies in zones that offer a raid tier — otherwise let everything spawn.
+  # -----------------------------
+  if ($instanceid && $instanceid > 0 && $npc->IsRaidTarget()) {
+      my $npc_id = $npc->GetNPCTypeID();
+      # Exception: Narandi the Wretched (118145) must stay in normal instances for Ring War
+      my %raid_depop_exceptions = (118145 => 1);
+      if (!$raid_depop_exceptions{$npc_id}) {
+          my $zone_short = quest::GetZoneShortName($zoneid);
+          if (plugin::HasRaidTier($zone_short)) {
+              my $dz_mode = _get_dz_mode($instanceid);
+              if ($dz_mode eq 'normal') {
+                  quest::debug("NORMAL DZ: Depop raid target " . $npc->GetCleanName());
+                  $npc->Depop();
+                  return;
+              }
+          }
+      }
+  }
 
   # -----------------------------
   # GLOBAL NPC COMBAT SCALING (SOLO/DUO FRIENDLY)
@@ -96,7 +138,7 @@ sub EVENT_SPAWN {
   # Skip combat scaling for pets, but allow other pet logic
   my $is_pet = $npc->IsPet();
 
-  if (!$is_pet && !plugin::IsScalingZone($zoneid)) {
+  if (!$is_pet && !plugin::IsScalingZone($zoneid) && !plugin::IsLdonScalingZone($zoneid)) {
 
 
     # ---------- DAMAGE ----------
@@ -161,7 +203,7 @@ sub EVENT_SPAWN {
     
       if ($owner && $owner->IsClient()) {
           # Equip pet from owner's pet bag
-          plugin::EquipPetFromBag($npc);
+          plugin::EquipPetFromBag($npc, $owner);
       }
   }
 
@@ -199,6 +241,21 @@ sub EVENT_SPAWN {
         $npc->ChangeGender(2);
       }
     }
+  }
+
+  # -----------------------------
+  # April Fools Global Drops (1 in 10 kills)
+  # -----------------------------
+  if (plugin::AprilFools_Enabled()) {
+      my @AprilFoolsItems = (29781, 42983, 55938, 64044, 64046);
+      plugin::AddLoot(1, 10, @AprilFoolsItems);
+  }
+
+  # -----------------------------
+  # LDON Relic Global Drop (community unlock event)
+  # -----------------------------
+  if (defined &quest::is_content_flag_enabled && !quest::is_content_flag_enabled("ldon")) {
+      plugin::AddLoot(1, 800, 9544);  # ~0.02% — Lost Dungeon Relic
   }
 
   # -----------------------------
@@ -425,10 +482,12 @@ sub EVENT_SAY {
                     return;
                 }
                 
-                my $equipped_count = plugin::EquipPetFromBag($npc);
-                if ($equipped_count && $equipped_count > 0) {
+                my $equipped_count = plugin::EquipPetFromBag($npc, $owner);
+                if (defined $equipped_count && $equipped_count > 0) {
                     quest::set_data($cooldown_key, time());
                     $client->Message(18, $npc->GetCleanName() . " 'I have equipped " . $equipped_count . " item(s) from your Pet Bag, Master!'");
+                } elsif (!defined $equipped_count) {
+                    $client->Message(13, $npc->GetCleanName() . " 'I could not find a Pet Bag in your inventory or bank, Master.'");
                 } else {
                     $client->Message(18, $npc->GetCleanName() . " 'I found no items to equip in your Pet Bag, Master.'");
                 }
@@ -444,8 +503,21 @@ sub EVENT_COMBAT {
     my $combat_state = plugin::val('$combat_state');
     if ($combat_state == 1) {
         plugin::EncounterScaling_OnEngage($npc);
+        plugin::LdonScaling_OnEngage($npc);
+        plugin::AprilFools_OnEngage($npc);
+
+        # Fellowship mob strength scaling (after encounter scaling)
+        if (!$npc->IsPet() && $npc->GetLevel() > 1) {
+            my $target = $npc->GetTarget();
+            if ($target && $target->IsClient()) {
+                my $tier = plugin::Fellowship_GetCurrentTier($target->CastToClient());
+                plugin::Fellowship_ScaleMob($npc, $tier) if $tier > 0;
+            }
+        }
     } else {
         plugin::EncounterScaling_OnDisengage($npc);
+        plugin::LdonScaling_OnDisengage($npc);
+        plugin::Fellowship_RestoreMob($npc);
     }
 }
 
@@ -462,6 +534,7 @@ sub EVENT_TIMER {
   our $timer;
   if ($timer eq 'enc_rescan') {
     plugin::EncounterScaling_Rescan($npc);
+    plugin::LdonScaling_Rescan($npc);
     return;
   }
 
@@ -561,6 +634,8 @@ sub EVENT_CHARM_END {
 
 sub EVENT_DEATH {
  
+  plugin::AprilFools_OnDeath($npc);
+
   quest::debug("ANTI-FARM: EVENT_DEATH fired");
  
   my $killer_id = plugin::val('$killer_id');
@@ -577,33 +652,11 @@ sub EVENT_DEATH {
   my $client = $killer_mob->CastToClient();
 
   # -----------------------------
-  # GROUP BONUS LOOT (4+ members)
+  # FELLOWSHIP BONUS LOOT (tier-based)
   # -----------------------------
-  if ($client->IsGrouped()) {
-    my $group      = $client->GetGroup();
-    my $group_size = $group ? $group->GroupCount() : 0;
-
-    if ($group_size >= 4) {
-      my $npc_lvl = $npc->GetLevel();
-
-      # Bonus shard roll: +20% of base rate
-      if (rand() < 0.0025) {
-        $npc->AddItem($ASCENDANT_SHARD_ID, 1);
-        quest::debug("GROUP BONUS: Added shard (group=$group_size npc_lvl=$npc_lvl)");
-      }
-
-      # Bonus tome roll: +20% of base rate
-      if (rand() < 0.0018) {
-        my @AllTomes = (
-          @IllegalibleTomesTier1,
-          @IllegalibleTomesTier2,
-          @IllegalibleTomesTier3,
-        );
-        my $tome = $AllTomes[int(rand(scalar(@AllTomes)))];
-        $npc->AddItem($tome, 1);
-        quest::debug("GROUP BONUS: Added tome $tome (group=$group_size npc_lvl=$npc_lvl)");
-      }
-    }
+  my $fellowship_tier = plugin::Fellowship_GetCurrentTier($client);
+  if ($fellowship_tier > 0) {
+    plugin::Fellowship_BonusLoot($npc, $client, $fellowship_tier);
   }
 
   # -----------------------------
@@ -669,6 +722,21 @@ sub EVENT_DEATH {
   }
 }
 
-
+# -----------------------------------------------------------------------------
+# EVENT_DEATH_COMPLETE — Raid DZ no-respawn
+# Disables spawn points after NPC death in raid-mode expedition instances.
+# Only fires in instanced zones with an active expedition named "...: Raid"
+# -----------------------------------------------------------------------------
+sub EVENT_DEATH_COMPLETE {
+    return unless $instanceid && $instanceid > 0;
+    my $dz_mode = _get_dz_mode($instanceid);
+    if ($dz_mode eq 'raid') {
+        my $sp_id = $npc->GetSpawnPointID();
+        if ($sp_id) {
+            quest::disable_spawn2($sp_id);
+            quest::debug("RAID DZ: Disabled spawn2 $sp_id for " . $npc->GetCleanName());
+        }
+    }
+}
 
 1;

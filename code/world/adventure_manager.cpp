@@ -2154,3 +2154,80 @@ void AdventureManager::Save()
 	}
 }
 
+void AdventureManager::ForceClearPlayer(const char *requester, const char *player)
+{
+	Adventure *current = GetActiveAdventure(player);
+	if(current)
+	{
+		auto msg = fmt::format(
+			"Adventure cleared for player '{}' (was in instance {}, zone '{}').",
+			player,
+			current->GetInstanceID(),
+			current->GetTemplate()->zone
+		);
+		current->RemovePlayer(player);
+		LogInfo("GM [{}] force-cleared adventure for player [{}]", requester, player);
+		ZSList::Instance()->SendEmoteMessageRaw(requester, 0, 0, Chat::Yellow, msg.c_str());
+	}
+	else
+	{
+		LogInfo("GM [{}] attempted to clear adventure for player [{}] but no active adventure found", requester, player);
+		auto msg = fmt::format("No active adventure found for player '{}'.", player);
+		ZSList::Instance()->SendEmoteMessageRaw(requester, 0, 0, Chat::Yellow, msg.c_str());
+	}
+
+	auto pack = new ServerPacket(ServerOP_AdventureDataClear, 64);
+	strcpy((char*)pack->pBuffer, player);
+	ZSList::Instance()->SendPacket(pack);
+	safe_delete(pack);
+}
+
+void AdventureManager::ListActiveAdventures(const char *requester)
+{
+	if(adventure_list.empty())
+	{
+		ZSList::Instance()->SendEmoteMessageRaw(requester, 0, 0, Chat::Yellow, "No active adventures.");
+		return;
+	}
+
+	auto msg = fmt::format("Active Adventures: {}", adventure_list.size());
+	ZSList::Instance()->SendEmoteMessageRaw(requester, 0, 0, Chat::Yellow, msg.c_str());
+
+	int index = 1;
+	for(auto iter = adventure_list.begin(); iter != adventure_list.end(); ++iter, ++index)
+	{
+		Adventure *adv = *iter;
+		const AdventureTemplate *t = adv->GetTemplate();
+		std::list<std::string> player_list = adv->GetPlayers();
+
+		std::string status_str;
+		switch(adv->GetStatus())
+		{
+			case AS_WaitingForZoneIn: status_str = "WaitingForZoneIn"; break;
+			case AS_WaitingForPrimaryEndTime: status_str = "InProgress"; break;
+			case AS_WaitingForSecondaryEndTime: status_str = "Overtime"; break;
+			case AS_Finished: status_str = "Finished"; break;
+			default: status_str = "Unknown"; break;
+		}
+
+		std::string player_names;
+		for(auto &p : player_list)
+		{
+			if(!player_names.empty()) player_names += ", ";
+			player_names += p;
+		}
+
+		auto line = fmt::format(
+			"  [{}] Zone: {} (inst {}), Status: {}, Time: {}s, Players({}): {}",
+			index,
+			t->zone,
+			adv->GetInstanceID(),
+			status_str,
+			adv->GetRemainingTime(),
+			player_list.size(),
+			player_names
+		);
+		ZSList::Instance()->SendEmoteMessageRaw(requester, 0, 0, Chat::Yellow, line.c_str());
+	}
+}
+

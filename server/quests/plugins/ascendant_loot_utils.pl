@@ -12,7 +12,7 @@
 # priority (later expansions override earlier ones for overlapping ranges).
 
 sub active_expansions {
-    return ('classic', 'kunark', 'velious');
+    return ('classic', 'kunark', 'velious', 'ldon');
 }
 
 #=============================================================================
@@ -58,6 +58,7 @@ sub _expansion_pool_dispatch {
     if ($exp eq 'classic') { return plugin::classic_rare_pools(); }
     if ($exp eq 'kunark')  { return plugin::kunark_rare_pools(); }
     if ($exp eq 'velious') { return plugin::velious_rare_pools(); }
+    if ($exp eq 'ldon')    { return plugin::ldon_rare_pools(); }
     return undef;
 }
 
@@ -66,6 +67,7 @@ sub _expansion_blocks_dispatch {
     if ($exp eq 'classic') { return plugin::classic_level_blocks(); }
     if ($exp eq 'kunark')  { return plugin::kunark_level_blocks(); }
     if ($exp eq 'velious') { return plugin::velious_level_blocks(); }
+    if ($exp eq 'ldon')    { return plugin::ldon_level_blocks(); }
     return undef;
 }
 
@@ -81,6 +83,7 @@ sub _expansion_zone_dispatch {
     if ($exp eq 'classic') { return plugin::classic_zone_ids(); }
     if ($exp eq 'kunark')  { return plugin::kunark_zone_ids(); }
     if ($exp eq 'velious') { return plugin::velious_zone_ids(); }
+    if ($exp eq 'ldon')    { return plugin::ldon_zone_ids(); }
     return undef;
 }
 
@@ -291,6 +294,39 @@ sub roll_tier_upgrade {
 sub get_loot_dbh {
     return plugin::LoadMysql() if defined &plugin::LoadMysql;
     return undef;
+}
+
+#=============================================================================
+# velious_armor_tier_reward($base_id)
+# Called from Velious armor quest turn-in scripts instead of quest::summonitem.
+# Uses same chances as rare_tier_config(). Offsets are fixed:
+#   T1 (Enhanced)  = base + 300000
+#   T2 (Exalted)   = base + 500000
+#   T3 (Ascendant) = base + 700000
+#=============================================================================
+
+sub velious_armor_tier_reward {
+    my $base_id = shift;
+    my $cfg = plugin::rare_tier_config();
+    my $reward_id = $base_id;
+
+    if ($cfg->{enable}) {
+        my $roll = rand();
+        if ($roll < $cfg->{t3_chance}) {
+            $reward_id = $base_id + 700000;
+            quest::debug("Velious armor tier: Ascendant (T3) -> $reward_id");
+        }
+        elsif ($roll < $cfg->{t3_chance} + $cfg->{t2_chance}) {
+            $reward_id = $base_id + 500000;
+            quest::debug("Velious armor tier: Exalted (T2) -> $reward_id");
+        }
+        elsif ($roll < $cfg->{t3_chance} + $cfg->{t2_chance} + $cfg->{t1_chance}) {
+            $reward_id = $base_id + 300000;
+            quest::debug("Velious armor tier: Enhanced (T1) -> $reward_id");
+        }
+    }
+
+    quest::summonitem($reward_id);
 }
 
 return 1;

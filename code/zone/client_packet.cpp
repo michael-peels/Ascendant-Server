@@ -843,6 +843,24 @@ void Client::CompleteConnect()
 		}
 	}
 
+	/* Update last_login on every zone-in so zone shard player counts stay accurate.
+	 * Also update m_pp.lastlogin so periodic SaveCharacterData doesn't revert it. */
+	if (!ingame) {
+		m_pp.lastlogin = time(nullptr);
+
+		auto e = CharacterDataRepository::FindOne(
+			database,
+			CharacterID()
+		);
+
+		e.last_login = m_pp.lastlogin;
+
+		const int updated = CharacterDataRepository::UpdateOne(database, e);
+		if (!updated) {
+			LogError("Failed to update login time for character_id [{}]", CharacterID());
+		}
+	}
+
 	if(ClientVersion() == EQ::versions::ClientVersion::RoF2 && RuleB(Parcel, EnableParcelMerchants)) {
 		SendParcelStatus();
 	}
@@ -1312,7 +1330,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 		account_creation = a.time_creation;
 		gminvul          = a.invulnerable;
 		flymode          = static_cast<GravityBehavior>(a.flymode);
-		tellsoff         = gm_hide_me;
+		tellsoff         = gm_hide_me && RuleB(Command, HideMeCommandDisablesTells);
 	}
 
 	/* Load Character Data */
@@ -2442,7 +2460,7 @@ void Client::Handle_OP_AdventureRequest(const EQApplicationPacket *app)
 	}
 	else
 	{
-		return;
+		group_members = 1;
 	}
 
 	if (group_members < RuleI(Adventure, MinNumberForGroup) || group_members > RuleI(Adventure, MaxNumberForGroup))
@@ -2489,7 +2507,7 @@ void Client::Handle_OP_AdventureRequest(const EQApplicationPacket *app)
 			}
 		}
 	}
-	else
+	else if (g)
 	{
 		int i = 0;
 		for (int x = 0; x < MAX_GROUP_MEMBERS; ++x)
@@ -2507,6 +2525,11 @@ void Client::Handle_OP_AdventureRequest(const EQApplicationPacket *app)
 				++i;
 			}
 		}
+	}
+	else
+	{
+		// Solo player — populate with own name
+		memcpy((packet->pBuffer + sizeof(ServerAdventureRequest_Struct)), GetName(), strlen(GetName()));
 	}
 
 	worldserver.SendPacket(packet);
@@ -17277,7 +17300,23 @@ void Client::CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p)
 				std::chrono::duration_cast<std::chrono::seconds>(since_last_moved).count()
 			);
 			m_is_idle = true;
+			m_idle_set_time = std::chrono::steady_clock::now();
 			Message(Chat::Yellow, "You are now idle. Updates will be sent to you less frequently.");
+			if (parse->PlayerHasQuestSub(EVENT_IDLE_ON)) {
+				parse->EventPlayer(EVENT_IDLE_ON, this, "", 0);
+			}
+
+			const int idle_shrink_size = RuleI(Character, IdleShrinkSize);
+			if (idle_shrink_size > 0) {
+				ChangeSize(static_cast<float>(idle_shrink_size), true);
+				if (GetPet()) {
+					GetPet()->ChangeSize(static_cast<float>(idle_shrink_size), true);
+				}
+			}
+
+			if (RuleB(Character, DisableEXPWhenIdle)) {
+				Message(Chat::Yellow, "Experience gain has been suspended while idle.");
+			}
 			return;
 		}
 	}
@@ -17296,10 +17335,28 @@ void Client::CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p)
 	}
 
 	// we could be not AFK and idle at the same time
-	if (has_moved && m_is_idle) {
+	auto now_idle_check = std::chrono::steady_clock::now();
+	bool idle_grace = (now_idle_check - m_idle_set_time) < std::chrono::seconds(5);
+	if (has_moved && m_is_idle && !idle_grace) {
 		LogInfo("Idle [{}] is no longer idle, syncing positions", GetCleanName());
 		m_is_idle = false;
 		Message(Chat::Yellow, "You are no longer idle.");
+		if (parse->PlayerHasQuestSub(EVENT_IDLE_OFF)) {
+			parse->EventPlayer(EVENT_IDLE_OFF, this, "", 0);
+		}
+
+		const int idle_shrink_size = RuleI(Character, IdleShrinkSize);
+		if (idle_shrink_size > 0) {
+			ChangeSize(GetDefaultRaceSize(), true);
+			if (GetPet()) {
+				GetPet()->ChangeSize(GetPet()->GetDefaultRaceSize(), true);
+			}
+		}
+
+		if (RuleB(Character, DisableEXPWhenIdle)) {
+			Message(Chat::Yellow, "Experience gain has been restored.");
+		}
+
 		SyncWorldPositionsToClient();
 		ResetAFKTimer();
 	}
