@@ -4178,6 +4178,23 @@ bool NPC::CanPetTakeItem(const EQ::ItemInstance *inst)
 		return false;
 	}
 
+	// Reject all pet trades in specified zones — direct players to use pet bags
+	{
+		std::string deny_zones = RuleS(Pets, DenyTradeZones);
+		if (deny_zones != "-1" && !deny_zones.empty()) {
+			auto zone_list = Strings::Split(deny_zones, ',');
+			for (auto &z : zone_list) {
+				if (Strings::ToInt(Strings::Trim(z)) == zone->GetZoneID()) {
+					auto o = GetOwner() && GetOwner()->IsClient() ? GetOwner()->CastToClient() : nullptr;
+					if (o) {
+						o->Message(Chat::PetResponse, fmt::format("{} says 'Sorry master, please use a pet bag instead.'", GetCleanName()).c_str());
+					}
+					return false;
+				}
+			}
+		}
+	}
+
 	const bool can_take_nodrop = (RuleB(Pets, CanTakeNoDrop) || inst->GetItem()->NoDrop != 0)
 								 || inst->GetItem()->NoRent == 0;
 

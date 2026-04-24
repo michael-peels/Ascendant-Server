@@ -8,9 +8,72 @@
 # from the previous system, refunding platinum and returning the illegible tome.
 
 sub EVENT_SAY {
+    my $char_id = $client->CharacterID();
+    my $is_tomeless = quest::get_data("tomeless_" . $char_id) ? 1 : 0;
+
     if ($text =~ /hail/i) {
         my $credits_link = quest::saylink("my credits", 1, "my credits");
-        plugin::Whisper("Greetings, $name. I am Haliax Greycloak, a scholar of ancient knowledge. The old translation system has been replaced with a new [training] system. You may also check [$credits_link] to view and redeem your AA training credits.");
+        my $tomeless_link = quest::saylink("the tomeless", 1, "The Tomeless");
+        if ($is_tomeless) {
+            my $renounce_link = quest::saylink("renounce", 1, "renounce");
+            plugin::Whisper("Greetings, $name. You walk the path of The Tomeless. The old translation system has been replaced with a new [training] system, but that path is closed to you. You may [$renounce_link] your vow for 100,000 platinum, or check [$credits_link] to view your credits.");
+        } else {
+            plugin::Whisper("Greetings, $name. I am Haliax Greycloak, a scholar of ancient knowledge. The old translation system has been replaced with a new [training] system. You may also check [$credits_link] to view and redeem your AA training credits. Or, if you seek a greater challenge, ask me about [$tomeless_link].");
+        }
+    }
+    elsif ($text =~ /^the tomeless$/i) {
+        if ($is_tomeless) {
+            plugin::Whisper("You already walk the path of The Tomeless, $name.");
+            return;
+        }
+        if ($ulevel > 5) {
+            plugin::Whisper("The path of The Tomeless must be chosen early. You have grown too powerful — only those of level 5 or below may commit.");
+            return;
+        }
+        # Check for any cross-class AAs (aa_ability.id > 20000)
+        my $dbh = plugin::LoadMysql();
+        if ($dbh) {
+            my ($has_20k_aa) = $dbh->selectrow_array(
+                "SELECT COUNT(*) FROM character_alternate_abilities caa " .
+                "JOIN aa_ability aa ON aa.first_rank_id = caa.aa_id " .
+                "WHERE caa.char_id = ? AND aa.id > 20000 AND caa.aa_value > 0",
+                undef, $char_id
+            );
+            if ($has_20k_aa && $has_20k_aa > 0) {
+                plugin::Whisper("You have already learned cross-class abilities. The path of The Tomeless is closed to you.");
+                return;
+            }
+        }
+        my $popup_text = "<c \"#FF4444\">The Tomeless — Path of the Purist</c><br><br>" .
+            "<c \"#CCCCCC\">By committing to The Tomeless, you forsake the path of tomes and cross-class knowledge forever.</c><br><br>" .
+            "<c \"#FFFF00\">What you gain:</c><br>" .
+            "- Unique titles marking your dedication<br>" .
+            "- A distinctive visual aura visible to all<br>" .
+            "- The respect of those who know what it means<br><br>" .
+            "<c \"#FF4444\">What you sacrifice:</c><br>" .
+            "- You may never turn in tomes to guild masters<br>" .
+            "- You may never learn cross-class abilities<br>" .
+            "- You may never redeem tome credits<br><br>" .
+            "<c \"#AAAAAA\">This vow can be renounced later for 100,000 platinum.</c><br><br>" .
+            "<c \"#FFFFFF\">Are you certain you wish to walk The Tomeless path?</c>";
+        quest::popup("The Tomeless", $popup_text, 9900, 1, 0);
+    }
+    elsif ($text =~ /^renounce$/i) {
+        unless ($is_tomeless) {
+            plugin::Whisper("You do not walk the path of The Tomeless, $name.");
+            return;
+        }
+        my $cost_copper = 100_000 * 1000; # 100K plat in copper
+        if ($client->GetCarriedMoney() < $cost_copper) {
+            plugin::Whisper("Renouncing The Tomeless requires 100,000 platinum. You do not carry enough.");
+            return;
+        }
+        my $popup_text = "<c \"#FFD700\">Renounce The Tomeless</c><br><br>" .
+            "<c \"#CCCCCC\">You wish to abandon your vow and rejoin the path of tomes and cross-class knowledge.</c><br><br>" .
+            "<c \"#FF4444\">Cost: 100,000 platinum</c><br><br>" .
+            "<c \"#AAAAAA\">Your Tomeless titles will be revoked and your visual aura will fade. You will receive a new title: The Renouncer.</c><br><br>" .
+            "<c \"#FFFFFF\">Are you certain?</c>";
+        quest::popup("Renounce The Tomeless", $popup_text, 9901, 1, 0);
     }
     elsif ($text =~ /my credits/i) {
         _show_credits($client);
@@ -39,6 +102,64 @@ sub EVENT_SAY {
     }
     elsif ($text =~ /buyback/i) {
         plugin::Whisper("Hand me any old translated tomes and I will refund their cost and return the matching illegible tome.");
+    }
+}
+
+sub EVENT_POPUPRESPONSE {
+    my $char_id = $client->CharacterID();
+
+    # Popup 9900 = Adopt The Tomeless
+    if ($popupid == 9900) {
+        # Re-check eligibility
+        if ($ulevel > 5) {
+            plugin::Whisper("You have grown too powerful. The path of The Tomeless is closed.");
+            return;
+        }
+        my $already = quest::get_data("tomeless_" . $char_id);
+        if ($already) {
+            plugin::Whisper("You already walk the path of The Tomeless.");
+            return;
+        }
+
+        # Commit
+        quest::set_data("tomeless_" . $char_id, 1);
+        quest::enabletitle(416);
+        quest::enabletitle(417);
+
+        # Apply appearance effects immediately
+        $client->SendAppearanceEffectActor(19, 6, 20, 6, 21, 6, 96, 6, 211, 6);
+        $client->SendAppearanceEffectActor(19, 5, 20, 5, 21, 5, 96, 5, 211, 5);
+
+        plugin::Whisper("It is done, $name. You walk the path of The Tomeless.");
+        $client->Message(15, "You have committed to The Tomeless. Titles unlocked. The path of tomes is closed to you.");
+        quest::we(15, "$name has committed to The Tomeless, forsaking the path of tomes and cross-class knowledge. Walk with purpose.");
+    }
+    # Popup 9901 = Renounce The Tomeless
+    elsif ($popupid == 9901) {
+        my $is_tomeless = quest::get_data("tomeless_" . $char_id) ? 1 : 0;
+        unless ($is_tomeless) {
+            plugin::Whisper("You do not walk the path of The Tomeless.");
+            return;
+        }
+        my $cost_copper = 100_000 * 1000;
+        if ($client->GetCarriedMoney() < $cost_copper) {
+            plugin::Whisper("You do not carry 100,000 platinum.");
+            return;
+        }
+
+        $client->TakeMoneyFromPP($cost_copper, 1);
+        quest::delete_data("tomeless_" . $char_id);
+
+        # Remove appearance effects
+        $client->RemoveAllAppearanceEffects();
+
+        # Revoke Tomeless titles, grant Renouncer title
+        quest::disabletitle(416);
+        quest::disabletitle(417);
+        quest::enabletitle(418);
+
+        plugin::Whisper("Your vow has been released, $name. The path of tomes is open to you once more.");
+        $client->Message(15, "You have renounced The Tomeless for 100,000 platinum. Your Tomeless titles have been revoked. The training system is available again.");
     }
 }
 
@@ -206,6 +327,11 @@ sub _show_redeem {
 sub _do_redeem {
     my ($client, $requested) = @_;
     my $char_id = $client->CharacterID();
+
+    if (quest::get_data("tomeless_" . $char_id)) {
+        plugin::Whisper("You walk the path of The Tomeless. Tome credit redemption is not available to you.");
+        return;
+    }
     my %tier_buckets = (1 => 'greater_credits', 2 => 'exalted_credits', 3 => 'ascendant_credits');
 
     my $total = 0;
@@ -248,6 +374,11 @@ sub _do_redeem {
 sub _do_redeem_tier {
     my ($client, $tier_slug, $class_id, $requested) = @_;
     my $char_id = $client->CharacterID();
+
+    if (quest::get_data("tomeless_" . $char_id)) {
+        plugin::Whisper("You walk the path of The Tomeless. Tome credit redemption is not available to you.");
+        return;
+    }
     my %slug_to_bucket = (
         'greater'   => 'greater_credits',
         'exalted'   => 'exalted_credits',

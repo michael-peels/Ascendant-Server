@@ -3,7 +3,7 @@
 
 local inktuta = "Inktu'ta the Unmasked Chapel"
 local inktuta_raid = {
-	expedition = { name="Inktu'ta the Unmasked Chapel   ", min_players=18, max_players=54 },
+	expedition = { name="Inktu'ta the Unmasked Chapel   ", min_players=1, max_players=54 },
 	instance   = { zone="inktuta", version=0, duration=eq.seconds("6h") },
 	compass    = { zone="qvic", x=-974.94, y=-1346.20, z=-500.81 },
 	safereturn = { zone="qvic", x=-1019.46, y=-1366.74, z=-492.12, h=256 },
@@ -24,8 +24,8 @@ function event_say(e)
 		e.other:Message(MT.NPCQuestSay, ("Aganetti the Keeper says, 'As well you should, never return, %s never come back.'"):format(e.other:GetCleanName()))
 	elseif e.message:findi("continue") then
 		if not is_cynosure_alive or is_gm then
-			if not is_gm and e.other:GetRaidMemberCountInZone() < 18 then
-				e.other:Message(MT.NPCQuestSay, "Aganetti the Keeper says, 'I'm sorry, but you don't have enough comrades with you to venture into this dangerous area. Come back when you have at least eighteen friends to join you on this perilous journey.")
+			if not is_gm and e.other:GetRaidMemberCountInZone() < 1 then
+				e.other:Message(MT.NPCQuestSay, "Aganetti the Keeper says, 'I'm sorry, but you don't have enough comrades with you to venture into this dangerous area.")
 			elseif not is_gm and e.other:DoesAnyPartyMemberHaveLockout(inktuta, "Replay Timer", 54) then
 				e.other:Message(MT.NPCQuestSay, "Aganetti the Keeper says, 'I'm afraid I cannot allow you to begin, someone in your party has been on this expedition too recently and cannot yet go again.'")
 			else

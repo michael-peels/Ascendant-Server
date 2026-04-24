@@ -201,6 +201,9 @@ public:
 		}
 
 		auto row = results.begin();
+		if (row == results.end() || !row[0]) {
+			return 0;
+		}
 		return Strings::ToUnsignedInt(row[0]);
 	}
 };

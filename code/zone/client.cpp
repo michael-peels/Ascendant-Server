@@ -6864,6 +6864,19 @@ void Client::ClearCurrentAdventure()
 
 void Client::AdventureFinish(bool win, int theme, int points)
 {
+	const std::string& excluded_zones = RuleS(Adventure, ExcludedPointsZones);
+	if (!excluded_zones.empty() && zone) {
+		const auto& zone_list = Strings::Split(excluded_zones, ",");
+		const std::string current_zone = zone->GetShortName();
+		for (auto z : zone_list) {
+			if (Strings::Trim(z) == current_zone) {
+				Message(Chat::Yellow, "You cannot receive adventure points while in this zone.");
+				points = 0;
+				break;
+			}
+		}
+	}
+
 	UpdateLDoNPoints(theme, points);
 	auto outapp = new EQApplicationPacket(OP_AdventureFinish, sizeof(AdventureFinish_Struct));
 	AdventureFinish_Struct *af = (AdventureFinish_Struct*)outapp->pBuffer;

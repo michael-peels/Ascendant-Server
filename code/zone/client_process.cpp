@@ -854,7 +854,6 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 
 	const int16 merchant_slots = (m_ClientVersionBit & EQ::versions::maskRoFAndLater) ? EQ::invtype::MERCHANT_SIZE : 80;
 
-	auto temporary_merchant_list = zone->tmpmerchanttable[npcid];
 	uint32 slot_id = 1;
 	uint8 handy_chance = 0;
 	for (const auto& ml : merchant_list) {
@@ -906,7 +905,7 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 			continue;
 		}
 
-		handy_chance = zone->random.Int(0, merchant_list.size() + temporary_merchant_list.size() - 1);
+		handy_chance = zone->random.Int(0, merchant_list.size() + zone->tmpmerchanttable[npcid].size() - 1);
 
 		item = database.GetItem(ml.item);
 		if (item) {
@@ -953,14 +952,12 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 	}
 
 	auto temporary_merchant_list_two = zone->tmpmerchanttable[npcid];
-	temporary_merchant_list.clear();
-	for (auto ml : temporary_merchant_list_two) {
-		if (slot_id > merchant_slots) {
+	for (const auto& ml : temporary_merchant_list_two) {
+		if (ml.slot > merchant_slots) {
 			break;
 		}
 
 		item = database.GetItem(ml.item);
-		ml.slot = slot_id;
 		if (item) {
 			if (!handy_chance) {
 				handy_item = item;
@@ -992,12 +989,7 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 				safe_delete(inst);
 			}
 		}
-		temporary_merchant_list.push_back(ml);
-		slot_id++;
 	}
-
-	//this resets the slot
-	zone->tmpmerchanttable[npcid] = temporary_merchant_list;
 	if (npc && handy_item) {
 		int greet_id = zone->random.Int(MERCHANT_GREETING, MERCHANT_HANDY_ITEM4);
 		auto handy_id = std::to_string(greet_id);

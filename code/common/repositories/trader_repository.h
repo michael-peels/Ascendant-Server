@@ -242,6 +242,20 @@ public:
 		return UpdateOne(db, e);
 	}
 
+	static bool AtomicClaimTransaction(Database &db, uint32 id)
+	{
+		auto results = db.QueryDatabase(
+			fmt::format(
+				"UPDATE `{}` SET `active_transaction` = 1 "
+				"WHERE `id` = {} AND `active_transaction` = 0",
+				TableName(),
+				id
+			)
+		);
+
+		return results.RowsAffected() > 0;
+	}
+
 	static int DeleteMany(Database &db, const std::vector<Trader> &entries)
 	{
 		std::vector<std::string> delete_ids;

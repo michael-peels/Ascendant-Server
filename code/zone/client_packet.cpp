@@ -2156,6 +2156,7 @@ void Client::Handle_OP_AdventureMerchantPurchase(const EQApplicationPacket *app)
 				merchant_type
 			).c_str()
 		);
+		return;
 	}
 
 
@@ -2203,6 +2204,24 @@ void Client::Handle_OP_AdventureMerchantPurchase(const EQApplicationPacket *app)
 		PutLootInInventory(EQ::invslot::slotCursor, *inst);
 	}
 	safe_delete(inst);
+
+	if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::MERCHANT_PURCHASE)) {
+		auto e = PlayerEvent::MerchantPurchaseEvent{
+			.npc_id = tmp->CastToNPC()->GetNPCTypeID(),
+			.merchant_name = tmp->GetCleanName(),
+			.merchant_type = merchantid,
+			.item_id = item->ID,
+			.item_name = item->Name,
+			.charges = charges,
+			.cost = static_cast<uint32>(item_cost),
+			.alternate_currency_id = 0,
+			.player_money_balance = 0,
+			.player_currency_balance = static_cast<uint64>(m_pp.ldon_points_available),
+		};
+
+		RecordPlayerEventLog(PlayerEvent::MERCHANT_PURCHASE, e);
+	}
+
 	Save(1);
 }
 
@@ -3753,17 +3772,30 @@ void Client::Handle_OP_Barter(const EQApplicationPacket *app)
 	switch (in->action) {
 
 		case Barter_BuyerSearch: {
+			if (!RuleB(Bazaar, EnableBarter)) {
+				Message(Chat::Red, "The barter system is currently disabled.");
+				break;
+			}
 			BuyerItemSearch(app);
 			break;
 		}
 
 		case Barter_SellerSearch: {
+			if (!RuleB(Bazaar, EnableBarter)) {
+				Message(Chat::Red, "The barter system is currently disabled.");
+				break;
+			}
 			auto bsr = (BarterSearchRequest_Struct *) app->pBuffer;
 			SendBuyerResults(*bsr);
 			break;
 		}
 
 		case Barter_BuyerModeOn: {
+			if (!RuleB(Bazaar, EnableBarter)) {
+				ToggleBuyerMode(false);
+				Message(Chat::Red, "The barter system is currently disabled.");
+				break;
+			}
 			if (!IsTrader()) {
 				ToggleBuyerMode(true);
 			}
@@ -3780,11 +3812,19 @@ void Client::Handle_OP_Barter(const EQApplicationPacket *app)
 		}
 
 		case Barter_BuyerItemUpdate: {
+			if (!RuleB(Bazaar, EnableBarter)) {
+				Message(Chat::Red, "The barter system is currently disabled.");
+				break;
+			}
 			ModifyBuyLine(app);
 			break;
 		}
 
 		case Barter_BuyerItemStart: {
+			if (!RuleB(Bazaar, EnableBarter)) {
+				Message(Chat::Red, "The barter system is currently disabled.");
+				break;
+			}
 			CreateStartingBuyLines(app);
 			break;
 		}
@@ -3797,6 +3837,10 @@ void Client::Handle_OP_Barter(const EQApplicationPacket *app)
 		}
 
 		case Barter_SellItem: {
+			if (!RuleB(Bazaar, EnableBarter)) {
+				Message(Chat::Red, "The barter system is currently disabled.");
+				break;
+			}
 			SellToBuyer(app);
 			break;
 		}
@@ -5884,6 +5928,13 @@ void Client::Handle_OP_DeleteSpell(const EQApplicationPacket *app)
 
 void Client::Handle_OP_DisarmTraps(const EQApplicationPacket *app)
 {
+	// RoF2+ clients send OP_DisarmTraps instead of OP_LDoNDisarmTraps for LDoN treasure chests
+	Mob* target = GetTarget();
+	if (target && target->IsNPC() && target->GetClass() == Class::LDoNTreasure && !target->IsAura()) {
+		Handle_OP_LDoNDisarmTraps(app);
+		return;
+	}
+
 	if (!HasSkill(EQ::skills::SkillDisarmTraps))
 		return;
 
@@ -13732,6 +13783,13 @@ void Client::Handle_OP_SenseHeading(const EQApplicationPacket *app)
 
 void Client::Handle_OP_SenseTraps(const EQApplicationPacket *app)
 {
+	// RoF2+ clients send OP_SenseTraps instead of OP_LDoNSenseTraps for LDoN treasure chests
+	Mob* target = GetTarget();
+	if (target && target->IsNPC() && target->GetClass() == Class::LDoNTreasure && !target->IsAura()) {
+		Handle_OP_LDoNSenseTraps(app);
+		return;
+	}
+
 	if (!HasSkill(EQ::skills::SkillSenseTraps))
 		return;
 
@@ -14084,6 +14142,33 @@ void Client::Handle_OP_ShopPlayerBuy(const EQApplicationPacket *app)
 		MerchantList ml = *itr;
 		if (GetLevel() < ml.level_required) {
 			continue;
+		}
+
+		if (!(ml.classes_required & (1 << (GetClass() - 1)))) {
+			continue;
+		}
+
+		if (!EQ::ValueWithin(Admin(), static_cast<int16>(ml.min_status), static_cast<int16>(ml.max_status))) {
+			continue;
+		}
+
+		int32 faction_id = tmp->IsNPC() ? tmp->CastToNPC()->GetPrimaryFaction() : 0;
+		if (faction_id) {
+			int32 faction_level = GetModCharacterFactionLevel(faction_id);
+			if (faction_level < ml.faction_required) {
+				continue;
+			}
+		}
+
+		auto bucket_name = ml.bucket_name;
+		auto const& bucket_value = ml.bucket_value;
+		if (!bucket_name.empty() && !bucket_value.empty()) {
+			DataBucketKey k = GetScopedBucketKeys();
+			k.key = bucket_name;
+			auto b = DataBucket::GetData(&database, k);
+			if (b.value.empty() || !zone->CompareDataBucket(ml.bucket_comparison, bucket_value, b.value)) {
+				continue;
+			}
 		}
 
 		if (mp->itemslot == ml.slot) {

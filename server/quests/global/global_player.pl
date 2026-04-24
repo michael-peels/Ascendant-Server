@@ -27,6 +27,12 @@ sub EVENT_ENTERZONE { #message only appears in Cities / Pok and wherever the Way
   # Auto-reapply Ascendant Auras on zone
   ApplyAscendantAuras();
 
+  # The Tomeless — visual aura on zone-in
+  if (quest::get_data("tomeless_" . $client->CharacterID())) {
+    $client->SendAppearanceEffectActor(19, 6, 20, 6, 21, 6, 96, 6, 211, 6);
+    $client->SendAppearanceEffectActor(19, 5, 20, 5, 21, 5, 96, 5, 211, 5);
+  }
+
   # April Fools size pranks
   plugin::AprilFools_OnZoneIn($client);
 

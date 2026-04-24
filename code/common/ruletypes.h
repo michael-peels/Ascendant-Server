@@ -301,6 +301,7 @@ RULE_BOOL(Pets, CanTakeNoDrop, false, "Setting whether anyone can give no-drop i
 RULE_INT(Pets, PetTauntRange, 150, "Range at which a pet will taunt targets.")
 RULE_BOOL(Pets, AlwaysAllowPetRename, false, "Enable this option to allow /changepetname to work without enabling a pet name change via scripts.")
 RULE_BOOL(Pets, PetsRequireLoS, false, "Whether or not pets require line of sight to be told to attack their target")
+RULE_STRING(Pets, DenyTradeZones, "344", "Comma-separated list of zone IDs where pets reject all item trades. Pet says to use pet bags instead. Set to -1 to disable.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(GM)
@@ -964,6 +965,7 @@ RULE_INT(Bazaar, VoucherDeliveryCost, 200, "Number of vouchers for direct delive
 RULE_BOOL(Bazaar, EnableParcelDelivery, true, "Enable bazaar purchases via parcel delivery.  Default is True.")
 RULE_INT(Bazaar, MaxBuyerInventorySearchResults, 200, "Maximum number of search results when a Buyer searches the global item list. Default is 200. RoF+ Only.")
 RULE_BOOL(Bazaar, UseAlternateBazaarSearch, false, "Allows the bazaar search window to search across bazaar shards. Default is false.")
+RULE_BOOL(Bazaar, EnableBarter, true, "Enable or Disable the Barter system (/buyer and /barter). When disabled, players cannot enter buyer mode or sell to buyers.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Mail)
@@ -996,6 +998,7 @@ RULE_INT(Adventure, LDoNTrapDistanceUse, 625, "LDoN trap distance use")
 RULE_REAL(Adventure, LDoNBaseTrapDifficulty, 15.0, "LDoN base trap difficulty")
 RULE_REAL(Adventure, LDoNCriticalFailTrapThreshold, 10.0, "LDoN critical fail trap threshold")
 RULE_INT(Adventure, LDoNLootCountModifier, 10, "LDoN Loot Count Modifier, lower is better (default is 10)")
+RULE_STRING(Adventure, ExcludedPointsZones, "bazaar", "Comma-delimited list of zone short names where players will not receive adventure points (e.g. 'bazaar,nexus')")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(AA)
@@ -1226,6 +1229,26 @@ RULE_INT(Ascendant, HybridCasterSpellDmgBonus, 25,
 // --- DoT cast time cap ---
 RULE_INT(Ascendant, DoTCastTimeCapMS, 2500,
 	"[Ascendant] Cap DoT spell cast times for Nec/Dru/Sha/Bard to this value in ms. Uses IsDamageOverTimeSpell() check. 0 = disabled.")
+// --- Caster AA-scaling damage bonus (clients only) ---
+RULE_INT(Ascendant, CasterAAScalingMinLevel, 60,
+	"[Ascendant] Minimum level for AA-scaling damage bonuses. 0 = no level gate.")
+RULE_INT(Ascendant, CasterAAScalingMinAA, 750,
+	"[Ascendant] Spent AAs where the scaling bonus begins. Below this = no bonus.")
+RULE_INT(Ascendant, CasterAAScalingMaxAA, 5500,
+	"[Ascendant] Spent AAs where the scaling bonus reaches its cap.")
+RULE_INT(Ascendant, CasterAAScalingDmgCap, 50,
+	"[Ascendant] Maximum pct bonus at CasterAAScalingMaxAA. DD: Nec/Wiz/Mag/Enc. DoT: Nec/Dru/Sha. Clients only. 0 = disabled.")
+RULE_INT(Ascendant, DoTCasterSpellDmgPctPerTick, 15,
+	"[Ascendant] Pct of SpellDmg stat added as extra per DoT tick for Nec/Dru/Sha clients. Bypasses GetExtraSpellAmt caps and duration splitting. Requires CasterAAScalingMinLevel. 0 = disabled.")
+RULE_INT(Ascendant, DDCasterSpellDmgPctPerCast, 100,
+	"[Ascendant] Pct of SpellDmg stat added as extra nuke damage per cast for Nec/Wiz/Mag/Enc clients. Applied before Ascendant multipliers. Requires CasterAAScalingMinLevel. 0 = disabled.")
+// --- Wizard Arcane Overvolt ---
+RULE_INT(Ascendant, WizardArcaneOvervoltMinChance, 5,
+	"[Ascendant] Wizard Arcane Overvolt proc chance (pct) at CasterAAScalingMinAA. Scales linearly to MaxChance at CasterAAScalingMaxAA. Clients only. 0 = disabled.")
+RULE_INT(Ascendant, WizardArcaneOvervoltMaxChance, 35,
+	"[Ascendant] Wizard Arcane Overvolt proc chance (pct) at CasterAAScalingMaxAA.")
+RULE_INT(Ascendant, WizardArcaneOvervoltDmgBonus, 75,
+	"[Ascendant] Pct bonus to nuke damage when Arcane Overvolt procs. Multiplicative with crits and AA scaling.")
 // --- Hate summon HP threshold ---
 RULE_INT(Ascendant, HateSummonHPRatio, 90,
 	"[Ascendant] Default HP ratio threshold for NPC hate summon. Mob must be at or below this HP% to summon. Per-NPC special_abilities param overrides this. 0 = disable hate summon.")

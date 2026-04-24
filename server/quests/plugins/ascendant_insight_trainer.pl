@@ -104,6 +104,12 @@ sub GetAllBalances {
 sub HandleTomeTurnin {
     my ($npc, $client, $itemcount_ref, $trainer_class) = @_;
 
+    # Block Tomeless players
+    if (quest::get_data("tomeless_" . $client->CharacterID())) {
+        $client->Message($COLOR_RED, "You have forsaken the path of tomes. The Tomeless do not seek this knowledge.");
+        return 0;
+    }
+
     my $trainer_name = $CLASS_NAMES{$trainer_class} || "Unknown";
     my $total_consumed = 0;
     my $tome_tier = 0;
@@ -649,6 +655,12 @@ sub HandlePopupResponse {
 sub HandleTrainRequest {
     my ($client, $universal_aa_id, $trainer_class) = @_;
 
+    # Block Tomeless players
+    if (quest::get_data("tomeless_" . $client->CharacterID())) {
+        $client->Message($COLOR_RED, "You walk the path of The Tomeless. Cross-class training is closed to you.");
+        return 0;
+    }
+
     my $dbh = plugin::LoadMysql();
     unless ($dbh) {
         $client->Message($COLOR_RED, "The training records are unavailable.");
@@ -808,6 +820,18 @@ sub HandleTrainRequest {
 sub HandleSay {
     my ($client, $text, $trainer_class) = @_;
     my $class_name = $CLASS_NAMES{$trainer_class} || "Unknown";
+
+    # Block Tomeless players from training system
+    if (quest::get_data("tomeless_" . $client->CharacterID())) {
+        if ($text =~ /hail/i) {
+            $client->Message($COLOR_RED, "You walk the path of The Tomeless. The training system is closed to you. Speak to Haliax Greycloak if you wish to renounce your vow.");
+            return 1;
+        }
+        if ($text =~ /^(train|buyaa|aainfo|balance)/i) {
+            $client->Message($COLOR_RED, "The Tomeless do not seek cross-class knowledge.");
+            return 1;
+        }
+    }
 
     if ($text =~ /hail/i) {
         my %bal = GetAllBalances($client, $trainer_class);

@@ -6,7 +6,7 @@ sub EVENT_SAY {
   if($ulevel >= 15) {
     if(plugin::check_hasitem($client, 741000) || $client->KeyRingCheck(741000)) { #Adventurer's Stone
       if($text=~/hail/i) {
-        quest::say("Nice to see you, $name. Am I safe in assuming you wish to travel today? I do admire the adventurers that so willingly take the risk involved with this spell. I enjoy knowing all of my hard work is not in vain. There's only been a few unfortunate folk that haven't, uhm, been so lucky. Frightful mess. I'll be sure to be extra careful where you are concerned. Honestly. A dark elf's word is . . . Well, forget that. He he. Tell me where you would like to go and I will send you there. I can send you to any of the other camps in [Butcherblock], [Commonlands], [Everfrost], [Nedaria's Landing], or [North Ro].");
+        quest::say("Nice to see you, $name. Am I safe in assuming you wish to travel today? I do admire the adventurers that so willingly take the risk involved with this spell. I enjoy knowing all of my hard work is not in vain. There's only been a few unfortunate folk that haven't, uhm, been so lucky. Frightful mess. I'll be sure to be extra careful where you are concerned. Honestly. A dark elf's word is . . . Well, forget that. He he. Tell me where you would like to go and I will send you there. I can send you to any of the other camps in [Butcherblock], [Commonlands], [Everfrost], or [North Ro].");
       }
       if($text=~/everfrost/i) {
         quest::emote("begins to cast a spell.");
@@ -15,10 +15,6 @@ sub EVENT_SAY {
       if($text=~/commonlands/i) {
         quest::emote("begins to cast a spell.");
         quest::selfcast(4176); #Teleport East Commons
-      }
-      if($text=~/nedaria/i) {
-        quest::emote("begins to cast a spell.");
-        quest::selfcast(4580); #Teleport Nedaria
       }
       if($text=~/north ro/i) {
         quest::emote("begins to cast a spell.");
