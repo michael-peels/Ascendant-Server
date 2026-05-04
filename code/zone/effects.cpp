@@ -147,6 +147,15 @@ int64 Mob::GetActSpellDamage(uint16 spell_id, int64 value, Mob* target) {
 				}
 			}
 
+			// [Ascendant] DD caster spell damage stat per-cast bonus (crit path, clients only)
+			if (RuleI(Ascendant, DDCasterSpellDmgPctPerCast) > 0
+				&& IsClient()
+				&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+				&& !spells[spell_id].no_heal_damage_item_mod
+				&& GetSpellDmg()
+				&& EQ::ValueWithin(GetClass(), Class::Necromancer, Class::Enchanter)) {
+				value -= GetSpellDmg() * RuleI(Ascendant, DDCasterSpellDmgPctPerCast) / 100;
+			}
 			// [Ascendant] Pure caster cast-time nuke bonus (crit path)
 			if (RuleI(Ascendant, PureCasterSpellDmgBonus) > 0
 				&& IsOfClientBot()
@@ -170,7 +179,43 @@ int64 Mob::GetActSpellDamage(uint16 spell_id, int64 value, Mob* target) {
 				&& spells[spell_id].cast_time >= RuleI(Ascendant, PureCasterDmgMinCastTimeMS)) {
 				value = value * (100 + RuleI(Ascendant, HybridCasterSpellDmgBonus)) / 100;
 			}
-
+			// [Ascendant] Caster AA-scaling damage bonus (DD, crit path, clients only)
+			if (RuleI(Ascendant, CasterAAScalingDmgCap) > 0
+				&& IsClient()
+				&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+				&& !spells[spell_id].no_heal_damage_item_mod
+				&& EQ::ValueWithin(GetClass(), Class::Necromancer, Class::Enchanter)) {
+				int spent = CastToClient()->GetSpentAA();
+				int min_aa = RuleI(Ascendant, CasterAAScalingMinAA);
+				int max_aa = RuleI(Ascendant, CasterAAScalingMaxAA);
+				int cap = RuleI(Ascendant, CasterAAScalingDmgCap);
+				if (spent > min_aa && max_aa > min_aa) {
+					int aa_bonus = (spent - min_aa) * cap / (max_aa - min_aa);
+					if (aa_bonus > cap) aa_bonus = cap;
+					if (aa_bonus > 0) value = value * (100 + aa_bonus) / 100;
+				}
+			}
+			// [Ascendant] Wizard Arcane Overvolt (crit path, clients only)
+			if (RuleI(Ascendant, WizardArcaneOvervoltMinChance) > 0
+				&& IsClient()
+				&& GetClass() == Class::Wizard
+				&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+				&& !spells[spell_id].no_heal_damage_item_mod) {
+				int spent = CastToClient()->GetSpentAA();
+				int min_aa = RuleI(Ascendant, CasterAAScalingMinAA);
+				int max_aa = RuleI(Ascendant, CasterAAScalingMaxAA);
+				int min_ch = RuleI(Ascendant, WizardArcaneOvervoltMinChance);
+				int max_ch = RuleI(Ascendant, WizardArcaneOvervoltMaxChance);
+				if (spent >= min_aa && max_aa > min_aa) {
+					int overvolt_chance = min_ch + (spent - min_aa) * (max_ch - min_ch) / (max_aa - min_aa);
+					if (overvolt_chance > max_ch) overvolt_chance = max_ch;
+					if (zone->random.Roll(overvolt_chance)) {
+						value = value * (100 + RuleI(Ascendant, WizardArcaneOvervoltDmgBonus)) / 100;
+						CastToClient()->Message(Chat::SpellCrit,
+							"Your incredible focus results in an Arcane Overvolt! (%d damage)", -value);
+					}
+				}
+			}
 			entity_list.FilteredMessageCloseString(
 				this, true, 100, Chat::SpellCrit, FilterSpellCrits,
 				OTHER_CRIT_BLAST, nullptr, GetName(), itoa(-value));
@@ -224,6 +269,15 @@ int64 Mob::GetActSpellDamage(uint16 spell_id, int64 value, Mob* target) {
 		}
 	}
 
+	// [Ascendant] DD caster spell damage stat per-cast bonus (non-crit path, clients only)
+	if (RuleI(Ascendant, DDCasterSpellDmgPctPerCast) > 0
+		&& IsClient()
+		&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+		&& !spells[spell_id].no_heal_damage_item_mod
+		&& GetSpellDmg()
+		&& EQ::ValueWithin(GetClass(), Class::Necromancer, Class::Enchanter)) {
+		value -= GetSpellDmg() * RuleI(Ascendant, DDCasterSpellDmgPctPerCast) / 100;
+	}
 	// [Ascendant] Pure caster cast-time nuke bonus (excludes lifetaps via no_heal_damage_item_mod)
 	if (RuleI(Ascendant, PureCasterSpellDmgBonus) > 0
 		&& IsOfClientBot()
@@ -246,6 +300,43 @@ int64 Mob::GetActSpellDamage(uint16 spell_id, int64 value, Mob* target) {
 		&& !spells[spell_id].no_heal_damage_item_mod
 		&& spells[spell_id].cast_time >= RuleI(Ascendant, PureCasterDmgMinCastTimeMS)) {
 		value = value * (100 + RuleI(Ascendant, HybridCasterSpellDmgBonus)) / 100;
+	}
+	// [Ascendant] Caster AA-scaling damage bonus (DD, non-crit path, clients only)
+	if (RuleI(Ascendant, CasterAAScalingDmgCap) > 0
+		&& IsClient()
+		&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+		&& !spells[spell_id].no_heal_damage_item_mod
+		&& EQ::ValueWithin(GetClass(), Class::Necromancer, Class::Enchanter)) {
+		int spent = CastToClient()->GetSpentAA();
+		int min_aa = RuleI(Ascendant, CasterAAScalingMinAA);
+		int max_aa = RuleI(Ascendant, CasterAAScalingMaxAA);
+		int cap = RuleI(Ascendant, CasterAAScalingDmgCap);
+		if (spent > min_aa && max_aa > min_aa) {
+			int aa_bonus = (spent - min_aa) * cap / (max_aa - min_aa);
+			if (aa_bonus > cap) aa_bonus = cap;
+			if (aa_bonus > 0) value = value * (100 + aa_bonus) / 100;
+		}
+	}
+	// [Ascendant] Wizard Arcane Overvolt (non-crit path, clients only)
+	if (RuleI(Ascendant, WizardArcaneOvervoltMinChance) > 0
+		&& IsClient()
+		&& GetClass() == Class::Wizard
+		&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+		&& !spells[spell_id].no_heal_damage_item_mod) {
+		int spent = CastToClient()->GetSpentAA();
+		int min_aa = RuleI(Ascendant, CasterAAScalingMinAA);
+		int max_aa = RuleI(Ascendant, CasterAAScalingMaxAA);
+		int min_ch = RuleI(Ascendant, WizardArcaneOvervoltMinChance);
+		int max_ch = RuleI(Ascendant, WizardArcaneOvervoltMaxChance);
+		if (spent >= min_aa && max_aa > min_aa) {
+			int overvolt_chance = min_ch + (spent - min_aa) * (max_ch - min_ch) / (max_aa - min_aa);
+			if (overvolt_chance > max_ch) overvolt_chance = max_ch;
+			if (zone->random.Roll(overvolt_chance)) {
+				value = value * (100 + RuleI(Ascendant, WizardArcaneOvervoltDmgBonus)) / 100;
+				CastToClient()->Message(Chat::SpellCrit,
+					"Your incredible focus results in an Arcane Overvolt! (%d damage)", -value);
+			}
+		}
 	}
 
 	return value;
@@ -389,6 +480,31 @@ int64 Mob::GetActDoTDamage(uint16 spell_id, int64 value, Mob* target, bool from_
 			&& IsOfClientBot()) {
 			value = value * (100 + RuleI(Ascendant, BardSongDmgBonus)) / 100;
 		}
+		// [Ascendant] Caster AA-scaling damage bonus (DoT, crit path, clients only)
+		if (RuleI(Ascendant, CasterAAScalingDmgCap) > 0
+			&& IsClient()
+			&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+			&& !spells[spell_id].no_heal_damage_item_mod
+			&& (GetClass() == Class::Necromancer || GetClass() == Class::Druid || GetClass() == Class::Shaman)) {
+			int spent = CastToClient()->GetSpentAA();
+			int min_aa = RuleI(Ascendant, CasterAAScalingMinAA);
+			int max_aa = RuleI(Ascendant, CasterAAScalingMaxAA);
+			int cap = RuleI(Ascendant, CasterAAScalingDmgCap);
+			if (spent > min_aa && max_aa > min_aa) {
+				int aa_bonus = (spent - min_aa) * cap / (max_aa - min_aa);
+				if (aa_bonus > cap) aa_bonus = cap;
+				if (aa_bonus > 0) value = value * (100 + aa_bonus) / 100;
+			}
+		}
+		// [Ascendant] DoT caster spell damage stat per-tick bonus (crit path, clients only)
+		if (RuleI(Ascendant, DoTCasterSpellDmgPctPerTick) > 0
+			&& IsClient()
+			&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+			&& !spells[spell_id].no_heal_damage_item_mod
+			&& GetSpellDmg()
+			&& (GetClass() == Class::Necromancer || GetClass() == Class::Druid || GetClass() == Class::Shaman)) {
+			value -= GetSpellDmg() * RuleI(Ascendant, DoTCasterSpellDmgPctPerTick) / 100;
+		}
 	}
 	else {
 
@@ -463,6 +579,31 @@ int64 Mob::GetActDoTDamage(uint16 spell_id, int64 value, Mob* target, bool from_
 			&& IsBardSong(spell_id)
 			&& IsOfClientBot()) {
 			value = value * (100 + RuleI(Ascendant, BardSongDmgBonus)) / 100;
+		}
+		// [Ascendant] Caster AA-scaling damage bonus (DoT, non-crit path, clients only)
+		if (RuleI(Ascendant, CasterAAScalingDmgCap) > 0
+			&& IsClient()
+			&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+			&& !spells[spell_id].no_heal_damage_item_mod
+			&& (GetClass() == Class::Necromancer || GetClass() == Class::Druid || GetClass() == Class::Shaman)) {
+			int spent = CastToClient()->GetSpentAA();
+			int min_aa = RuleI(Ascendant, CasterAAScalingMinAA);
+			int max_aa = RuleI(Ascendant, CasterAAScalingMaxAA);
+			int cap = RuleI(Ascendant, CasterAAScalingDmgCap);
+			if (spent > min_aa && max_aa > min_aa) {
+				int aa_bonus = (spent - min_aa) * cap / (max_aa - min_aa);
+				if (aa_bonus > cap) aa_bonus = cap;
+				if (aa_bonus > 0) value = value * (100 + aa_bonus) / 100;
+			}
+		}
+		// [Ascendant] DoT caster spell damage stat per-tick bonus (non-crit path, clients only)
+		if (RuleI(Ascendant, DoTCasterSpellDmgPctPerTick) > 0
+			&& IsClient()
+			&& GetLevel() >= RuleI(Ascendant, CasterAAScalingMinLevel)
+			&& !spells[spell_id].no_heal_damage_item_mod
+			&& GetSpellDmg()
+			&& (GetClass() == Class::Necromancer || GetClass() == Class::Druid || GetClass() == Class::Shaman)) {
+			value -= GetSpellDmg() * RuleI(Ascendant, DoTCasterSpellDmgPctPerTick) / 100;
 		}
 	}
 

@@ -14,7 +14,7 @@ local subversion = {
 }
 
 local foresight = {
-	expedition = { name="Proving Grounds: The Mastery of Foresight", min_players=6, max_players=54 },
+	expedition = { name="Proving Grounds: The Mastery of Foresight", min_players=1, max_players=54 },
 	instance   = { zone="chambersc", version=2, duration=eq.seconds("3h") },
 	compass    = compass,
 	safereturn = safereturn,

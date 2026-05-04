@@ -100,7 +100,7 @@ function event_loot(e)
 end
 
 local expedition_info = {
-	expedition = { name="Anguish, the Fallen Palace", min_players=6, max_players=54 },
+	expedition = { name="Anguish, the Fallen Palace", min_players=1, max_players=54 },
 	instance   = { zone="anguish", version=0, duration=eq.seconds("6h") },
 	compass    = { zone="wallofslaughter", x=1353.15, y=1712.19, z=109.001 },
 	safereturn = { zone="wallofslaughter", x=1349.13, y=1715.00, z=123.81, h=0.0 },

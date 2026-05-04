@@ -84,6 +84,14 @@ sub is_named_or_rare {
     return 0;
 }
 
+sub _is_ldon_chest {
+    my ($npc, $zid) = @_;
+    return 0 unless $npc && $zid;
+    my $ldon_zones = plugin::ldon_zone_ids();
+    return 0 unless exists $ldon_zones->{$zid};
+    return ($npc->GetCleanName() =~ /chest/i) ? 1 : 0;
+}
+
 
 # -----------------------------------------------------------------------------
 # DZ Mode Detection — derives mode from expedition name, cached per instance
@@ -356,6 +364,22 @@ sub EVENT_SPAWN {
         plugin::AddLoot(1, 3, @AllIllegalibleTomes);
     }
 }
+  # LDON chests — boosted tomes/shards (same rates as named mobs)
+  elsif (!$is_velious_raid && _is_ldon_chest($npc, $zoneid)) {
+
+    my @AllIllegalibleTomes = (
+        @IllegalibleTomesTier1,
+        @IllegalibleTomesTier2,
+        @IllegalibleTomesTier3
+    );
+
+    # Same rates as named: shard 1/6, tomes 1/3
+    plugin::AddLoot(1, 6, $ASCENDANT_SHARD_ID);
+    plugin::AddLoot(1, 3, @AllIllegalibleTomes);
+
+    # Also give mischief-style bonus loot like nameds
+    plugin::rare_levelblock_loot($npc, $npc_level, $zoneid);
+  }
   # For all other mobs - 1% chance for bonus loot (1 item)
   elsif (!$is_velious_raid) {
       plugin::common_mob_bonus_loot($npc, $npc_level, $zoneid);
@@ -486,6 +510,7 @@ sub EVENT_SAY {
                 if (defined $equipped_count && $equipped_count > 0) {
                     quest::set_data($cooldown_key, time());
                     $client->Message(18, $npc->GetCleanName() . " 'I have equipped " . $equipped_count . " item(s) from your Pet Bag, Master!'");
+
                 } elsif (!defined $equipped_count) {
                     $client->Message(13, $npc->GetCleanName() . " 'I could not find a Pet Bag in your inventory or bank, Master.'");
                 } else {

@@ -111,6 +111,12 @@ void Trade::AddEntity(uint16 trade_slot_id, uint32 stack_size) {
 		return;
 	}
 
+	// Prevent adding items if trade is not active (race condition with accept)
+	if (state != Trading && state != TradeAccepted) {
+		LogTrading("Trade::AddEntity() called while trade state is [{}], ignoring", (int)state);
+		return;
+	}
+
 	// If one party accepted the trade then an item was added, their state needs to be reset
 	owner->trade->state = Trading;
 	Mob* with = With();
@@ -1387,6 +1393,20 @@ void Client::BuyTraderItem(TraderBuy_Struct *tbs, Client *Trader, const EQApplic
 		return;
 	}
 
+	auto trader_db_item = TraderRepository::GetItemBySerialNumber(database, tbs->serial_number, Trader->CharacterID());
+	if (!trader_db_item.id) {
+		LogTrading("Item serial_number <red>[{}] no longer exists in DB for trader <red>[{}] - rejecting stale purchase",
+			tbs->serial_number, Trader->GetName());
+		TradeRequestFailed(app);
+		return;
+	}
+	if (!TraderRepository::AtomicClaimTransaction(database, trader_db_item.id)) {
+		LogTrading("Item serial_number <red>[{}] already in active transaction for trader <red>[{}]",
+			tbs->serial_number, Trader->GetName());
+		TradeRequestFailed(app);
+		return;
+	}
+
 	LogTrading(
 		"Name: <green>[{}] IsStackable: <green>[{}] Requested Quantity: <green>[{}] Charges on Item <green>[{}]",
 		buy_item->GetItem()->Name,
@@ -2281,7 +2301,12 @@ void Client::ModifyBuyLine(const EQApplicationPacket *app)
 			buy_line.item_toggle = 0;
 		}
 
-		buy_line.item_icon = database.GetItem(buy_line.item_id)->Icon;
+		auto *item_data = database.GetItem(buy_line.item_id);
+		if (!item_data) {
+			Message(Chat::Red, "Invalid item specified for buy line.");
+			return;
+		}
+		buy_line.item_icon = item_data->Icon;
 		if ((buy_line.item_toggle && it != std::end(current_buy_lines)) || pass) {
 			BuyerBuyLinesRepository::ModifyBuyLine(database, buy_line, GetBuyerID());
 			Message(Chat::Yellow, fmt::format("Buy line for {} modified.", buy_line.item_name).c_str());
@@ -2895,7 +2920,7 @@ void Client::BuyTraderItemOutsideBazaar(TraderBuy_Struct *tbs, const EQApplicati
 		return;
 	}
 
-	if (trader_item.active_transaction) {
+	if (trader_item.active_transaction || !TraderRepository::AtomicClaimTransaction(database, trader_item.id)) {
 		LogTrading("Attempt to purchase an item outside of the Bazaar trader_id <red>[{}] item serial_number "
 				   "<red>[{}] The item is already within an active transaction.",
 				   tbs->trader_id,
@@ -2906,8 +2931,6 @@ void Client::BuyTraderItemOutsideBazaar(TraderBuy_Struct *tbs, const EQApplicati
 		TradeRequestFailed(app);
 		return;
 	}
-
-	TraderRepository::UpdateActiveTransaction(database, trader_item.id, true);
 
 	std::unique_ptr<EQ::ItemInstance> buy_item(
 		database.CreateItem(

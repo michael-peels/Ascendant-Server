@@ -15,7 +15,7 @@ local efficiency = {
 }
 
 local specialization = {
-	expedition = { name="Proving Grounds: The Mastery of Specialization", min_players=6, max_players=54 },
+	expedition = { name="Proving Grounds: The Mastery of Specialization", min_players=1, max_players=54 },
 	instance   = { zone="chambersd", version=2, duration=eq.seconds("3h") },
 	compass    = compass,
 	safereturn = safereturn,

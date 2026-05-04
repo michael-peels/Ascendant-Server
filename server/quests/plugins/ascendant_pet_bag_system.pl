@@ -52,32 +52,16 @@ sub EquipPetFromBag {
     my $base_key   = "petbag_base:${char_id}_${pet_eid}";
     my $existing_base = quest::get_data($base_key);
 
-    # Clear all existing loot before re-adding fresh from bag
-    $npc->ClearItemList();
-    quest::debug("PetBag: Cleared all existing items from pet");
+    # Only call AddItem on first equip. On re-equip, items already persist in
+    # equipment[]/GetInv() from the first equip. ClearItemList() only clears
+    # m_loot_items (the loot drop list), NOT the equipped inventory that
+    # CalcItemBonuses iterates. Calling AddItem again causes multi-slot items
+    # (rings, wrists, ears) to equip into alternate empty slots, doubling stats.
+    my $is_first_equip = !$existing_base;
 
-    # On re-equip, restore AddItem-affected stats to baseline values.
-    # ClearItemList() does NOT revert stat bonuses from previous AddItem() calls,
-    # so without this reset, stats stack every time the bag is re-equipped.
-    if ($existing_base) {
-        my @b = split(',', $existing_base);
-        $npc->ModifyNPCStat("max_hp",       $b[0]);
-        $npc->ModifyNPCStat("str",           $b[3]);
-        $npc->ModifyNPCStat("sta",           $b[4]);
-        $npc->ModifyNPCStat("agi",           $b[5]);
-        $npc->ModifyNPCStat("dex",           $b[6]);
-        $npc->ModifyNPCStat("int",           $b[7]);
-        $npc->ModifyNPCStat("wis",           $b[8]);
-        $npc->ModifyNPCStat("cha",           $b[9]);
-        $npc->ModifyNPCStat("mr",            $b[10]);
-        $npc->ModifyNPCStat("fr",            $b[11]);
-        $npc->ModifyNPCStat("cr",            $b[12]);
-        $npc->ModifyNPCStat("pr",            $b[13]);
-        $npc->ModifyNPCStat("dr",            $b[14]);
-        $npc->ModifyNPCStat("min_hit",       $b[15]);
-        $npc->ModifyNPCStat("max_hit",       $b[16]);
-        $npc->ModifyNPCStat("attack_delay",  $b[17] / 100);  # stored as centiseconds, ModifyNPCStat takes raw
-        quest::debug("PetBag: Restored all stats to baseline before re-equip");
+    if ($is_first_equip) {
+        $npc->ClearItemList();
+        quest::debug("PetBag: First equip — cleared loot list");
     }
 
     my $equipped_count = 0;
@@ -131,7 +115,15 @@ sub EquipPetFromBag {
         
         quest::debug("PetBag: Found item in slot $bag_slot: $item_name (ID: $item_id)");
         
-        $npc->AddItem($item_id, 1, 1);
+        if ($is_first_equip) {
+            my $aug1 = $item->GetAugmentItemID(0) || 0;
+            my $aug2 = $item->GetAugmentItemID(1) || 0;
+            my $aug3 = $item->GetAugmentItemID(2) || 0;
+            my $aug4 = $item->GetAugmentItemID(3) || 0;
+            my $aug5 = $item->GetAugmentItemID(4) || 0;
+            my $aug6 = $item->GetAugmentItemID(5) || 0;
+            $npc->AddItem($item_id, 1, 1, $aug1, $aug2, $aug3, $aug4, $aug5, $aug6);
+        }
         $equipped_count++;
 
         # Accumulate AC/ATK bonuses (AddItem does NOT apply these to pets)
@@ -545,6 +537,29 @@ sub ShowPetStats {
     my $d_max = (scalar @b >= 17) ? _delta_str($max_hit, $b[16]) : "";
     my $d_del = (scalar @b >= 18) ? _delta_str($delay,   $b[17]) : "";
 
+    # Read itembonuses for mod2/heroic display (actual values from CalcBonuses)
+    my $ib = $npc->GetItemBonuses();
+    my $ib_accuracy      = $ib->GetHitChance()         || 0;
+    my $ib_avoidance     = $ib->GetAvoidMeleeChance()  || 0;
+    my $ib_shielding     = $ib->GetMeleeMitigation()   || 0;
+    my $ib_spellshield   = $ib->GetSpellShield()       || 0;
+    my $ib_dotshield     = $ib->GetDOTShielding()      || 0;
+    my $ib_stunresist    = $ib->GetStunResist()        || 0;
+    my $ib_strikethrough = $ib->GetStrikeThrough()     || 0;
+    my $ib_ds            = $ib->GetDamageShield()      || 0;
+    my $ib_healamt       = $ib->GetHealAmt()           || 0;
+    my $ib_spelldmg      = $ib->GetSpellDamage()       || 0;
+    my $ib_clairvoyance  = $ib->GetClairvoyance()      || 0;
+    my $ib_haste         = $ib->GetHaste()             || 0;
+
+    my $ib_hstr = $ib->GetHeroicSTR() || 0;
+    my $ib_hsta = $ib->GetHeroicSTA() || 0;
+    my $ib_hdex = $ib->GetHeroicDEX() || 0;
+    my $ib_hagi = $ib->GetHeroicAGI() || 0;
+    my $ib_hint = $ib->GetHeroicINT() || 0;
+    my $ib_hwis = $ib->GetHeroicWIS() || 0;
+    my $ib_hcha = $ib->GetHeroicCHA() || 0;
+
     # Build equipped items list with slot labels
     my %slot_names = (
         1 => 'Charm', 2 => 'Ear', 4 => 'Head', 8 => 'Face', 16 => 'Ear',
@@ -636,6 +651,16 @@ sub ShowPetStats {
     <b>Active:</b> $wpn_status - Avg $avg_hit | Delay $active_delay_disp | DPS $est_dps<br><br>
 
     <b>Accuracy:</b> $acc | <b>Avoidance:</b> $avoid | <b>Slow Mit:</b> $slowmit<br><br>
+
+    <c "#FF6666"><b>Item Bonuses (from CalcBonuses)</b></c><br>
+    <b>Accuracy:</b> $ib_accuracy | <b>Avoidance:</b> $ib_avoidance | <b>Shielding:</b> $ib_shielding<br>
+    <b>Spell Shield:</b> $ib_spellshield | <b>DoT Shield:</b> $ib_dotshield | <b>Stun Resist:</b> $ib_stunresist<br>
+    <b>Strikethrough:</b> $ib_strikethrough | <b>DS:</b> $ib_ds | <b>Clairvoyance:</b> $ib_clairvoyance<br>
+    <b>Heal Amt:</b> $ib_healamt | <b>Spell Dmg:</b> $ib_spelldmg | <b>Haste:</b> $ib_haste<br><br>
+
+    <c "#FF66FF"><b>Heroic Stats (from items)</b></c><br>
+    <b>hSTR:</b> $ib_hstr  <b>hSTA:</b> $ib_hsta  <b>hAGI:</b> $ib_hagi  <b>hDEX:</b> $ib_hdex<br>
+    <b>hINT:</b> $ib_hint  <b>hWIS:</b> $ib_hwis  <b>hCHA:</b> $ib_hcha<br><br>
 
     <c "#DD88FF"><b>Spell Power</b></c><br>
     <b>Focus DMG:</b> +$focus_dmg | <b>Focus Heal:</b> +$focus_heal<br><br>

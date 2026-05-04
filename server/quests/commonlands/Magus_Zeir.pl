@@ -6,7 +6,7 @@ sub EVENT_SAY {
   if($ulevel >= 15) {
     if(plugin::check_hasitem($client, 741000) || $client->KeyRingCheck(741000)) { #Adventurer's Stone
       if($text=~/hail/i) {
-        quest::say("Welcome, brave $name. You have to be brave to entertain the use of our magic. It's not that I don't trust the spell or my companions, it's just that the auras of the stones we found are so unstable and strange. We are still trying to learn the nature of the magic. It really is unlike any other magic we've seen on Norrath, and it's very powerful. One time, when I cast the spell on a young Vah Shir, she burst into a furry cloud of . . . Perhaps I shouldn't talk about that. Tell me where you would like to go and I will send you there. I can send you to any of the other camps in [Butcherblock], [Everfrost], [Nedaria's Landing], [North Ro], or [South Ro].");
+        quest::say("Welcome, brave $name. You have to be brave to entertain the use of our magic. It's not that I don't trust the spell or my companions, it's just that the auras of the stones we found are so unstable and strange. We are still trying to learn the nature of the magic. It really is unlike any other magic we've seen on Norrath, and it's very powerful. One time, when I cast the spell on a young Vah Shir, she burst into a furry cloud of . . . Perhaps I shouldn't talk about that. Tell me where you would like to go and I will send you there. I can send you to any of the other camps in [Butcherblock], [Everfrost], [North Ro], or [South Ro].");
       }
       if($text=~/everfrost/i) {
         quest::emote("begins to cast a spell.");
@@ -15,10 +15,6 @@ sub EVENT_SAY {
       if($text=~/butcherblock/i) {
         quest::emote("begins to cast a spell.");
         quest::selfcast(4179); #Teleport Butcherblock
-      }
-      if($text=~/nedaria/i) {
-        quest::emote("begins to cast a spell.");
-        quest::selfcast(4580); #Teleport Nedaria
       }
       if($text=~/north ro/i) {
         quest::emote("begins to cast a spell.");
